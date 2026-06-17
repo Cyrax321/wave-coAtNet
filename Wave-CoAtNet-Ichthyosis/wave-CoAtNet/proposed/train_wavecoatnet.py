@@ -83,17 +83,15 @@ torch.backends.cudnn.benchmark = True
 API_KEY = "gXuxxWEMFJ8nK73o7pN7"
 TARGET_SIZE = (224, 224)
 BATCH_SIZE = 24
-EPOCHS = 50
+EPOCHS = 30
 LR_BACKBONE = 1e-5          # lower LR for pretrained ConvNeXt stages (matches baselines)
-LR_HEAD = 2e-4              # higher LR for novel modules + classifier
+LR_HEAD = 1e-4              # higher LR for novel modules + classifier (matches baselines)
 WEIGHT_DECAY = 0.01
 DROPOUT = 0.2
 SCTR_WEIGHT = 0.1           # weight for contrastive loss term
 PROTO_MOMENTUM = 0.99       # EMA momentum for prototype tracking
 ORTHO_WEIGHT = 0.05         # weight for cross-prototype orthogonality loss
 PROTO_WARMUP_EPOCHS = 5     # epochs with fast prototype adaptation (momentum=0.9)
-FREEZE_BACKBONE_EPOCHS = 5  # freeze backbone for first N epochs to warm up novel modules
-WARMUP_EPOCHS = 5           # LR warmup epochs
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -786,14 +784,7 @@ def main():
         {'params': backbone_params, 'lr': LR_BACKBONE},
         {'params': novel_params,    'lr': LR_HEAD},
     ], weight_decay=WEIGHT_DECAY)
-
-    # Warmup + Cosine LR schedule
-    warmup_sched = torch.optim.lr_scheduler.LinearLR(
-        optimizer, start_factor=0.01, total_iters=WARMUP_EPOCHS)
-    cosine_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=EPOCHS - WARMUP_EPOCHS)
-    scheduler = torch.optim.lr_scheduler.SequentialLR(
-        optimizer, [warmup_sched, cosine_sched], milestones=[WARMUP_EPOCHS])
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
 
     try:
         print("\n--- Model Summary ---")
@@ -810,16 +801,6 @@ def main():
     for epoch in range(EPOCHS):
         print(f"\n--- Epoch {epoch + 1}/{EPOCHS} ---")
         t0 = time.time()
-
-        # Backbone freezing: freeze for first N epochs to let novel modules warm up
-        if epoch == 0:
-            print(f"  [Backbone FROZEN for first {FREEZE_BACKBONE_EPOCHS} epochs]")
-            for p in backbone_params:
-                p.requires_grad = False
-        elif epoch == FREEZE_BACKBONE_EPOCHS:
-            print(f"  [Backbone UNFROZEN]")
-            for p in backbone_params:
-                p.requires_grad = True
 
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, epoch=epoch, scaler=scaler)
         val_loss,  val_acc,  _, _ = evaluate(model, validation_loader, criterion, "Validating")
@@ -881,8 +862,7 @@ def main():
     print(f"  Batch size       : {BATCH_SIZE}")
     print(f"  Epochs           : {EPOCHS}")
     print(f"  Optimiser        : AdamW (backbone_lr={LR_BACKBONE}, head_lr={LR_HEAD}, weight_decay={WEIGHT_DECAY})")
-    print(f"  LR schedule      : LinearWarmup({WARMUP_EPOCHS}ep) + CosineAnnealing")
-    print(f"  Backbone freeze  : first {FREEZE_BACKBONE_EPOCHS} epochs")
+    print(f"  LR schedule      : CosineAnnealingLR (T_max={EPOCHS})")
     print(f"  Proto warmup     : {PROTO_WARMUP_EPOCHS} epochs at momentum=0.9, then {PROTO_MOMENTUM}")
     print(f"  Loss             : CE(label_smoothing=0.1, class_weights) + {SCTR_WEIGHT}*SupCon(T=0.07)")
     print(f"  Dropout          : {DROPOUT}")
