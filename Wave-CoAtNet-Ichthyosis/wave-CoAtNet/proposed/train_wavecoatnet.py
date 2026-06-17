@@ -1,25 +1,16 @@
 """
 WaveCoAtNet: Wavelet-enhanced Convolutional Attention Network
-             with Multi-Scale Frequency-Decomposed Cross-Attention,
+             with Frequency-Decomposed Cross-Attention,
              Prototype-Anchored Token Selection, and
              Supervised Contrastive Token Regularization
 ==============================================================================
 Proposed method for ichthyosis subtype classification.
 
 Novel contributions:
-  1. Multi-Scale Wavelet-Guided Frequency-Decomposed Cross-Attention
-     (MS-WG-FDCA) --
-     Performs a 2-level Haar DWT on stage1 CNN features to capture texture
-     at multiple spatial scales:
-       - Level-1 high-frequency (LH1+HL1+HH1): fine texture — fish-scale
-         patterns, peeling edges (Ichthyosis Vulgaris).
-       - Level-2 decomposition of LL1 produces:
-         * Ultra-low (LL2): coarsest structural layout — plate boundaries,
-           large fissures (Harlequin Ichthyosis).
-         * Mid-frequency (LH2+HL2+HH2): intermediate detail — scale
-           clustering, moderate texture gradients.
-     Three separate cross-attention streams fuse these bands with stage2
-     queries, balanced by a learned 3-way frequency gate.
+  1. Wavelet-Guided Frequency-Decomposed Cross-Attention (WG-FDCA) --
+     Decomposes stage1 CNN features via 2D Haar DWT into structure (LL) and
+     texture (LH+HL+HH) sub-bands, then performs frequency-selective cross-
+     attention from stage2 queries with a learned per-token frequency gate.
 
   2. Prototype-Anchored Dynamic Token Selection (PA-DTS) --
      Selects diagnostically relevant tokens by scoring them against learnable
@@ -92,15 +83,17 @@ torch.backends.cudnn.benchmark = True
 API_KEY = "gXuxxWEMFJ8nK73o7pN7"
 TARGET_SIZE = (224, 224)
 BATCH_SIZE = 24
-EPOCHS = 30
+EPOCHS = 50
 LR_BACKBONE = 1e-5          # lower LR for pretrained ConvNeXt stages (matches baselines)
-LR_HEAD = 1e-4              # higher LR for novel modules + classifier (matches baselines)
+LR_HEAD = 2e-4              # higher LR for novel modules + classifier
 WEIGHT_DECAY = 0.01
 DROPOUT = 0.2
 SCTR_WEIGHT = 0.1           # weight for contrastive loss term
 PROTO_MOMENTUM = 0.99       # EMA momentum for prototype tracking
 ORTHO_WEIGHT = 0.05         # weight for cross-prototype orthogonality loss
 PROTO_WARMUP_EPOCHS = 5     # epochs with fast prototype adaptation (momentum=0.9)
+FREEZE_BACKBONE_EPOCHS = 5  # freeze backbone for first N epochs to warm up novel modules
+WARMUP_EPOCHS = 5           # LR warmup epochs
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -186,29 +179,23 @@ class CBAM(nn.Module):
 
 
 # ===========================
-# Novel Module 1: Multi-Scale Wavelet-Guided Frequency-Decomposed Cross-Attention
+# Novel Module 1: Wavelet-Guided Frequency-Decomposed Cross-Attention
 # ===========================
 class WaveletFrequencyDecomposedCrossAttention(nn.Module):
     """
-    Multi-scale frequency-selective cross-attention between CNN stages via
-    2-level wavelet decomposition.
+    Frequency-selective cross-attention between CNN stages via wavelet
+    decomposition.
 
-    Stage1 features are decomposed via a 2-level Haar DWT cascade:
-      Level 1:  feat_stage1 -> LL1, LH1, HL1, HH1
-      Level 2:  LL1         -> LL2, LH2, HL2, HH2
+    Stage1 features are decomposed via 2D Haar DWT into:
+      - Low-frequency stream (LL sub-band): captures structural patterns
+        like plate-like fissures in Harlequin Ichthyosis
+      - High-frequency stream (LH+HL+HH): captures fine texture details
+        like fish-scale patterns in Ichthyosis Vulgaris
 
-    This yields three semantically meaningful frequency bands:
-      - High-freq stream  (LH1+HL1+HH1): fine texture — fish-scale patterns,
-        peeling edges (Ichthyosis Vulgaris)
-      - Mid-freq stream   (LH2+HL2+HH2): intermediate structure — scale
-        clustering, moderate texture gradients (Lamellar Ichthyosis)
-      - Ultra-low stream  (LL2): coarsest structural layout — plate
-        boundaries, large fissures (Harlequin Ichthyosis)
-
-    Stage2 features serve as queries. Three separate cross-attention
-    operations attend to the ultra-low, mid-freq, and high-freq key/value
-    streams. A learned 3-way frequency gate dynamically balances the
-    contribution of each scale based on image content.
+    Stage2 features serve as queries. Two separate cross-attention operations
+    attend to the low-freq and high-freq key/value streams. A learnable
+    per-token frequency gate dynamically balances structure vs texture
+    based on image content.
 
     Args:
         dim_low:   Channel dimension of stage1 output (96 for ConvNeXt-Tiny)
@@ -223,42 +210,25 @@ class WaveletFrequencyDecomposedCrossAttention(nn.Module):
         self.head_dim = dim_high // num_heads
         self.scale = self.head_dim ** -0.5
 
-        # Projection for ultra-low frequency stream (LL2 — coarsest structure)
-        self.proj_ultra_low = nn.Sequential(
+        self.proj_low_freq = nn.Sequential(
             nn.Conv2d(dim_low, dim_high, kernel_size=1, bias=False),
             nn.BatchNorm2d(dim_high),
             nn.GELU(),
         )
-        # Projection for mid-frequency stream (LH2+HL2+HH2 — intermediate)
-        self.proj_mid_freq = nn.Sequential(
-            nn.Conv2d(dim_low * 3, dim_high, kernel_size=1, bias=False),
-            nn.BatchNorm2d(dim_high),
-            nn.GELU(),
-        )
-        # Projection for high-frequency stream (LH1+HL1+HH1 — fine texture)
         self.proj_high_freq = nn.Sequential(
             nn.Conv2d(dim_low * 3, dim_high, kernel_size=1, bias=False),
             nn.BatchNorm2d(dim_high),
             nn.GELU(),
         )
 
-        # Shared query projection
         self.q_proj = nn.Linear(dim_high, dim_high, bias=False)
         self.norm_q = nn.LayerNorm(dim_high)
 
-        # Ultra-low stream KV projections
-        self.k_proj_ultra_low = nn.Linear(dim_high, dim_high, bias=False)
-        self.v_proj_ultra_low = nn.Linear(dim_high, dim_high, bias=False)
-        self.out_proj_ultra_low = nn.Linear(dim_high, dim_high)
-        self.norm_kv_ultra_low = nn.LayerNorm(dim_high)
+        self.k_proj_low = nn.Linear(dim_high, dim_high, bias=False)
+        self.v_proj_low = nn.Linear(dim_high, dim_high, bias=False)
+        self.out_proj_low = nn.Linear(dim_high, dim_high)
+        self.norm_kv_low = nn.LayerNorm(dim_high)
 
-        # Mid-freq stream KV projections
-        self.k_proj_mid = nn.Linear(dim_high, dim_high, bias=False)
-        self.v_proj_mid = nn.Linear(dim_high, dim_high, bias=False)
-        self.out_proj_mid = nn.Linear(dim_high, dim_high)
-        self.norm_kv_mid = nn.LayerNorm(dim_high)
-
-        # High-freq stream KV projections
         self.k_proj_high = nn.Linear(dim_high, dim_high, bias=False)
         self.v_proj_high = nn.Linear(dim_high, dim_high, bias=False)
         self.out_proj_high = nn.Linear(dim_high, dim_high)
@@ -267,13 +237,13 @@ class WaveletFrequencyDecomposedCrossAttention(nn.Module):
         self.attn_drop = nn.Dropout(dropout * 0.5)
         self.proj_drop = nn.Dropout(dropout)
 
-        # 3-way frequency gate: produces 3 softmax-normalized weights per token
         self.freq_gate = nn.Sequential(
-            nn.Linear(dim_high * 3, dim_high // 4),
+            nn.Linear(dim_high * 2, dim_high // 4),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(dim_high // 4, 3),
-        )  # output is logits for 3 streams; softmax applied in forward()
+            nn.Linear(dim_high // 4, 1),
+            nn.Sigmoid(),
+        )
 
         self.ffn = nn.Sequential(
             nn.Linear(dim_high, dim_high * 2),
@@ -303,43 +273,26 @@ class WaveletFrequencyDecomposedCrossAttention(nn.Module):
         return self.proj_drop(out_proj(out))
 
     def forward(self, feat_low: torch.Tensor, feat_high: torch.Tensor) -> torch.Tensor:
-        # Level-1 DWT: decompose stage1 features
-        ll1, lh1, hl1, hh1 = haar_dwt_2d(feat_low)
+        ll, lh, hl, hh = haar_dwt_2d(feat_low)
 
-        # Level-2 DWT: further decompose LL1 for coarser structure
-        ll2, lh2, hl2, hh2 = haar_dwt_2d(ll1)
+        low_feat = self.proj_low_freq(ll)
+        high_feat = self.proj_high_freq(torch.cat([lh, hl, hh], dim=1))
 
-        # Project each frequency band to dim_high
-        ultra_low_feat = self.proj_ultra_low(ll2)                       # (B, dim_high, H/4, W/4)
-        mid_feat = self.proj_mid_freq(torch.cat([lh2, hl2, hh2], dim=1))  # (B, dim_high, H/4, W/4)
-        high_feat = self.proj_high_freq(torch.cat([lh1, hl1, hh1], dim=1))  # (B, dim_high, H/2, W/2)
-
-        # Flatten to token sequences
-        ultra_low_tokens = ultra_low_feat.flatten(2).transpose(1, 2)
-        mid_tokens = mid_feat.flatten(2).transpose(1, 2)
+        low_tokens = low_feat.flatten(2).transpose(1, 2)
         high_tokens = high_feat.flatten(2).transpose(1, 2)
         q_tokens = feat_high.flatten(2).transpose(1, 2)
 
-        # Three-stream cross-attention
-        ultra_low_out = self._cross_attend(q_tokens, ultra_low_tokens,
-                                           self.k_proj_ultra_low, self.v_proj_ultra_low,
-                                           self.out_proj_ultra_low, self.norm_kv_ultra_low)
-        mid_out = self._cross_attend(q_tokens, mid_tokens,
-                                     self.k_proj_mid, self.v_proj_mid,
-                                     self.out_proj_mid, self.norm_kv_mid)
+        low_out = self._cross_attend(q_tokens, low_tokens,
+                                     self.k_proj_low, self.v_proj_low,
+                                     self.out_proj_low, self.norm_kv_low)
         high_out = self._cross_attend(q_tokens, high_tokens,
                                       self.k_proj_high, self.v_proj_high,
                                       self.out_proj_high, self.norm_kv_high)
 
-        # 3-way learned frequency gate (softmax-normalized per token)
-        gate_input = torch.cat([ultra_low_out, mid_out, high_out], dim=-1)
-        gate_logits = self.freq_gate(gate_input)        # (B, N, 3)
-        gate_weights = F.softmax(gate_logits, dim=-1)   # (B, N, 3)
-        g_ultra = gate_weights[:, :, 0:1]  # (B, N, 1)
-        g_mid   = gate_weights[:, :, 1:2]
-        g_high  = gate_weights[:, :, 2:3]
+        gate_input = torch.cat([low_out, high_out], dim=-1)
+        gate = self.freq_gate(gate_input)
 
-        fused_ca = g_ultra * ultra_low_out + g_mid * mid_out + g_high * high_out
+        fused_ca = gate * high_out + (1 - gate) * low_out
 
         fused = q_tokens + fused_ca
         fused = fused + self.ffn(self.norm_ffn(fused))
@@ -570,7 +523,7 @@ class WaveCoAtNet(nn.Module):
 
         vit_dim = 192
 
-        # Novel Module 1: Multi-Scale Wavelet-Guided Frequency-Decomposed Cross-Attention
+        # Novel Module 1: Wavelet-Guided Frequency-Decomposed Cross-Attention
         self.wg_fdca = WaveletFrequencyDecomposedCrossAttention(
             dim_low=96, dim_high=192, num_heads=4, dropout=dropout
         )
@@ -626,7 +579,7 @@ class WaveCoAtNet(nn.Module):
         feat_stage1 = self.cnn_stage1(x)
         feat_stage2 = self.cnn_stage2(feat_stage1)
 
-        # MS-WG-FDCA: multi-scale wavelet-guided cross-attention fusion
+        # WG-FDCA: wavelet-guided cross-attention fusion
         fused_tokens = self.wg_fdca(feat_stage1, feat_stage2)
 
         # ViT global context
@@ -833,7 +786,14 @@ def main():
         {'params': backbone_params, 'lr': LR_BACKBONE},
         {'params': novel_params,    'lr': LR_HEAD},
     ], weight_decay=WEIGHT_DECAY)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
+
+    # Warmup + Cosine LR schedule
+    warmup_sched = torch.optim.lr_scheduler.LinearLR(
+        optimizer, start_factor=0.01, total_iters=WARMUP_EPOCHS)
+    cosine_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=EPOCHS - WARMUP_EPOCHS)
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer, [warmup_sched, cosine_sched], milestones=[WARMUP_EPOCHS])
 
     try:
         print("\n--- Model Summary ---")
@@ -850,6 +810,16 @@ def main():
     for epoch in range(EPOCHS):
         print(f"\n--- Epoch {epoch + 1}/{EPOCHS} ---")
         t0 = time.time()
+
+        # Backbone freezing: freeze for first N epochs to let novel modules warm up
+        if epoch == 0:
+            print(f"  [Backbone FROZEN for first {FREEZE_BACKBONE_EPOCHS} epochs]")
+            for p in backbone_params:
+                p.requires_grad = False
+        elif epoch == FREEZE_BACKBONE_EPOCHS:
+            print(f"  [Backbone UNFROZEN]")
+            for p in backbone_params:
+                p.requires_grad = True
 
         train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, epoch=epoch, scaler=scaler)
         val_loss,  val_acc,  _, _ = evaluate(model, validation_loader, criterion, "Validating")
@@ -905,13 +875,14 @@ def main():
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("\n--- Hyperparameter Summary ---")
-    print(f"  Architecture     : WaveCoAtNet (ConvNeXt-Tiny + MS-WG-FDCA [2-level DWT] + {model.num_vit_blocks} ViT + CBAM + PA-DTS + PGAP + DPA + SCTR)")
+    print(f"  Architecture     : WaveCoAtNet (ConvNeXt-Tiny + WG-FDCA + {model.num_vit_blocks} ViT + CBAM + PA-DTS + PGAP + DPA + SCTR)")
     print(f"  Backbone         : convnext_tiny (pretrained=True, ImageNet-1k)")
     print(f"  Input resolution : {TARGET_SIZE[0]}x{TARGET_SIZE[1]}")
     print(f"  Batch size       : {BATCH_SIZE}")
     print(f"  Epochs           : {EPOCHS}")
     print(f"  Optimiser        : AdamW (backbone_lr={LR_BACKBONE}, head_lr={LR_HEAD}, weight_decay={WEIGHT_DECAY})")
-    print(f"  LR schedule      : CosineAnnealingLR (T_max={EPOCHS})")
+    print(f"  LR schedule      : LinearWarmup({WARMUP_EPOCHS}ep) + CosineAnnealing")
+    print(f"  Backbone freeze  : first {FREEZE_BACKBONE_EPOCHS} epochs")
     print(f"  Proto warmup     : {PROTO_WARMUP_EPOCHS} epochs at momentum=0.9, then {PROTO_MOMENTUM}")
     print(f"  Loss             : CE(label_smoothing=0.1, class_weights) + {SCTR_WEIGHT}*SupCon(T=0.07)")
     print(f"  Dropout          : {DROPOUT}")

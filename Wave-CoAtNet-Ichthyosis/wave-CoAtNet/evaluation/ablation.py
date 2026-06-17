@@ -1,23 +1,22 @@
 """
 WaveCoAtNet: Ablation Study
 ==============================
-Trains eleven model conditions to isolate the contribution of each novel
+Trains ten model conditions to isolate the contribution of each novel
 module. All conditions use identical hyperparameters, seed, and data split.
 
     python evaluation/ablation.py --condition full
 
 Conditions:
-  full               -- WaveCoAtNet (all: MS-WG-FDCA [2-level DWT] + 4 ViT + CBAM + PA-DTS + PGAP + DPA + SCTR)
-  no_multiscale_dwt  -- Full but with single-level DWT instead of 2-level
-  no_dpa             -- Full but with PGAP only (no Dual-Path Aggregation)
-  no_pgap            -- Full but with mean-pooling instead of PGAP+DPA
-  no_wgfdca          -- Plain cross-attention instead of wavelet-decomposed
-  no_transformer     -- CNN + PA-DTS only (no ViT blocks, no cross-attention)
-  no_padts           -- MS-WG-FDCA + ViT, but uses global avg pool (no token selection)
-  no_sctr            -- Full architecture but without contrastive loss
-  fixed_pruning      -- MS-WG-FDCA + ViT + old SE with fixed 75/50% pruning
-  no_prototypes      -- MS-WG-FDCA + ViT + SE-based selection (no prototypes)
-  baseline           -- Plain ConvNeXt-Tiny fine-tuned
+  full             -- WaveCoAtNet (all: WG-FDCA + 4 ViT + CBAM + PA-DTS + PGAP + DPA + SCTR)
+  no_dpa           -- Full but with PGAP only (no Dual-Path Aggregation)
+  no_pgap          -- Full but with mean-pooling instead of PGAP+DPA
+  no_wgfdca        -- Plain cross-attention instead of wavelet-decomposed
+  no_transformer   -- CNN + PA-DTS only (no ViT blocks, no cross-attention)
+  no_padts         -- WG-FDCA + ViT, but uses global avg pool (no token selection)
+  no_sctr          -- Full architecture but without contrastive loss
+  fixed_pruning    -- WG-FDCA + ViT + old SE with fixed 75/50% pruning
+  no_prototypes    -- WG-FDCA + ViT + SE-based selection (no prototypes)
+  baseline         -- Plain ConvNeXt-Tiny fine-tuned
 """
 
 import os
@@ -68,7 +67,7 @@ DEVICE       = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 RESULTS_CSV  = "ablation_results.csv"
 
 VALID_CONDITIONS = (
-    'full', 'no_multiscale_dwt', 'no_dpa', 'no_pgap', 'no_wgfdca', 'no_transformer',
+    'full', 'no_dpa', 'no_pgap', 'no_wgfdca', 'no_transformer',
     'no_padts', 'no_sctr', 'fixed_pruning', 'no_prototypes', 'baseline'
 )
 
@@ -125,74 +124,8 @@ class CBAM(nn.Module):
         return self.spatial_attn(self.channel_attn(x))
 
 
-# ── MS-WG-FDCA (Novel Module 1 — 2-level DWT) ────────────────────────────────
+# ── WG-FDCA (Novel Module 1) ─────────────────────────────────────────────────
 class WaveletFrequencyDecomposedCrossAttention(nn.Module):
-    """Multi-Scale WG-FDCA with 2-level DWT (full architecture)."""
-    def __init__(self, dim_low=96, dim_high=192, num_heads=4, dropout=0.1):
-        super().__init__()
-        self.num_heads = num_heads
-        self.head_dim = dim_high // num_heads
-        self.scale = self.head_dim ** -0.5
-        self.proj_ultra_low = nn.Sequential(
-            nn.Conv2d(dim_low, dim_high, 1, bias=False), nn.BatchNorm2d(dim_high), nn.GELU())
-        self.proj_mid_freq = nn.Sequential(
-            nn.Conv2d(dim_low * 3, dim_high, 1, bias=False), nn.BatchNorm2d(dim_high), nn.GELU())
-        self.proj_high_freq = nn.Sequential(
-            nn.Conv2d(dim_low * 3, dim_high, 1, bias=False), nn.BatchNorm2d(dim_high), nn.GELU())
-        self.q_proj = nn.Linear(dim_high, dim_high, bias=False)
-        self.norm_q = nn.LayerNorm(dim_high)
-        self.k_proj_ultra_low = nn.Linear(dim_high, dim_high, bias=False)
-        self.v_proj_ultra_low = nn.Linear(dim_high, dim_high, bias=False)
-        self.out_proj_ultra_low = nn.Linear(dim_high, dim_high)
-        self.norm_kv_ultra_low = nn.LayerNorm(dim_high)
-        self.k_proj_mid = nn.Linear(dim_high, dim_high, bias=False)
-        self.v_proj_mid = nn.Linear(dim_high, dim_high, bias=False)
-        self.out_proj_mid = nn.Linear(dim_high, dim_high)
-        self.norm_kv_mid = nn.LayerNorm(dim_high)
-        self.k_proj_high = nn.Linear(dim_high, dim_high, bias=False)
-        self.v_proj_high = nn.Linear(dim_high, dim_high, bias=False)
-        self.out_proj_high = nn.Linear(dim_high, dim_high)
-        self.norm_kv_high = nn.LayerNorm(dim_high)
-        self.attn_drop = nn.Dropout(dropout * 0.5)
-        self.proj_drop = nn.Dropout(dropout)
-        self.freq_gate = nn.Sequential(
-            nn.Linear(dim_high * 3, dim_high // 4), nn.GELU(), nn.Dropout(dropout),
-            nn.Linear(dim_high // 4, 3))
-        self.ffn = nn.Sequential(
-            nn.Linear(dim_high, dim_high * 2), nn.GELU(), nn.Dropout(dropout),
-            nn.Linear(dim_high * 2, dim_high), nn.Dropout(dropout))
-        self.norm_ffn = nn.LayerNorm(dim_high)
-
-    def _cross_attend(self, q_tokens, kv_tokens, k_proj, v_proj, out_proj, norm_kv):
-        B = q_tokens.shape[0]
-        kv = norm_kv(kv_tokens)
-        Q = self.q_proj(self.norm_q(q_tokens)).reshape(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        K = k_proj(kv).reshape(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        V = v_proj(kv).reshape(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        attn = self.attn_drop((Q @ K.transpose(-2, -1) * self.scale).softmax(dim=-1))
-        out = (attn @ V).transpose(1, 2).reshape(B, -1, self.num_heads * self.head_dim)
-        return self.proj_drop(out_proj(out))
-
-    def forward(self, feat_low, feat_high):
-        ll1, lh1, hl1, hh1 = haar_dwt_2d(feat_low)
-        ll2, lh2, hl2, hh2 = haar_dwt_2d(ll1)
-        ultra_low_tokens = self.proj_ultra_low(ll2).flatten(2).transpose(1, 2)
-        mid_tokens = self.proj_mid_freq(torch.cat([lh2, hl2, hh2], dim=1)).flatten(2).transpose(1, 2)
-        high_tokens = self.proj_high_freq(torch.cat([lh1, hl1, hh1], dim=1)).flatten(2).transpose(1, 2)
-        q_tokens = feat_high.flatten(2).transpose(1, 2)
-        ultra_low_out = self._cross_attend(q_tokens, ultra_low_tokens, self.k_proj_ultra_low, self.v_proj_ultra_low, self.out_proj_ultra_low, self.norm_kv_ultra_low)
-        mid_out = self._cross_attend(q_tokens, mid_tokens, self.k_proj_mid, self.v_proj_mid, self.out_proj_mid, self.norm_kv_mid)
-        high_out = self._cross_attend(q_tokens, high_tokens, self.k_proj_high, self.v_proj_high, self.out_proj_high, self.norm_kv_high)
-        gate_logits = self.freq_gate(torch.cat([ultra_low_out, mid_out, high_out], dim=-1))
-        gw = F.softmax(gate_logits, dim=-1)
-        fused_ca = gw[:,:,0:1]*ultra_low_out + gw[:,:,1:2]*mid_out + gw[:,:,2:3]*high_out
-        fused = q_tokens + fused_ca
-        return fused + self.ffn(self.norm_ffn(fused))
-
-
-# ── Single-level WG-FDCA (for no_multiscale_dwt ablation) ─────────────────────
-class SingleLevelWGFDCA(nn.Module):
-    """Original single-level DWT WG-FDCA (ablation: no multi-scale)."""
     def __init__(self, dim_low=96, dim_high=192, num_heads=4, dropout=0.1):
         super().__init__()
         self.num_heads = num_heads
@@ -429,8 +362,8 @@ def build_model(condition: str, num_classes: int) -> nn.Module:
             super().__init__()
             self.condition = condition
             self.use_sctr = condition not in ('fixed_pruning', 'baseline', 'no_sctr')
-            self.use_pgap = condition in ('full', 'no_multiscale_dwt', 'no_dpa', 'no_wgfdca', 'no_sctr')
-            self.use_dpa = condition in ('full', 'no_multiscale_dwt', 'no_wgfdca', 'no_sctr')
+            self.use_pgap = condition in ('full', 'no_dpa', 'no_wgfdca', 'no_sctr')
+            self.use_dpa = condition in ('full', 'no_wgfdca', 'no_sctr')
 
             if condition == 'baseline':
                 self.model = create_model('convnext_tiny', pretrained=True, num_classes=num_classes)
@@ -449,16 +382,13 @@ def build_model(condition: str, num_classes: int) -> nn.Module:
             has_ca = condition != 'no_transformer'
             has_vit = condition != 'no_transformer'
             use_wavelet = condition not in ('no_wgfdca',)
-            use_padts = condition in ('full', 'no_multiscale_dwt', 'no_dpa', 'no_pgap', 'no_wgfdca', 'no_sctr')
+            use_padts = condition in ('full', 'no_dpa', 'no_pgap', 'no_wgfdca', 'no_sctr')
             use_se_selection = condition == 'no_prototypes'
             use_fixed = condition == 'fixed_pruning'
 
             if has_ca:
                 if use_wavelet:
-                    if condition == 'no_multiscale_dwt':
-                        self.cross_attn = SingleLevelWGFDCA(96, 192, 4, DROPOUT)
-                    else:
-                        self.cross_attn = WaveletFrequencyDecomposedCrossAttention(96, 192, 4, DROPOUT)
+                    self.cross_attn = WaveletFrequencyDecomposedCrossAttention(96, 192, 4, DROPOUT)
                 else:
                     self.cross_attn = PlainCrossAttention(96, 192, 4, DROPOUT)
 
@@ -504,7 +434,7 @@ def build_model(condition: str, num_classes: int) -> nn.Module:
 
             has_ca = self.condition != 'no_transformer'
             has_vit = self.condition != 'no_transformer'
-            use_padts = self.condition in ('full', 'no_multiscale_dwt', 'no_dpa', 'no_pgap', 'no_wgfdca', 'no_sctr')
+            use_padts = self.condition in ('full', 'no_dpa', 'no_pgap', 'no_wgfdca', 'no_sctr')
             use_se_sel = self.condition == 'no_prototypes'
             use_fixed = self.condition == 'fixed_pruning'
             use_gap = self.condition == 'no_padts'
@@ -629,17 +559,16 @@ def main():
     args = parser.parse_args()
 
     labels = {
-        'full':              'WaveCoAtNet (Full)',
-        'no_multiscale_dwt': 'w/o Multi-Scale DWT (1-level)',
-        'no_dpa':            'w/o DPA (PGAP only)',
-        'no_pgap':           'w/o PGAP+DPA (Mean Pool)',
-        'no_wgfdca':         'w/o WG-FDCA (Plain CA)',
-        'no_transformer':    'w/o Transformer',
-        'no_padts':          'w/o PA-DTS (GAP)',
-        'no_sctr':           'w/o SCTR (CE only)',
-        'fixed_pruning':     'w/ Fixed Pruning',
-        'no_prototypes':     'w/o Prototypes (SE only)',
-        'baseline':          'ConvNeXt-Tiny Baseline',
+        'full':           'WaveCoAtNet (Full)',
+        'no_dpa':         'w/o DPA (PGAP only)',
+        'no_pgap':        'w/o PGAP+DPA (Mean Pool)',
+        'no_wgfdca':      'w/o WG-FDCA (Plain CA)',
+        'no_transformer': 'w/o Transformer',
+        'no_padts':       'w/o PA-DTS (GAP)',
+        'no_sctr':        'w/o SCTR (CE only)',
+        'fixed_pruning':  'w/ Fixed Pruning',
+        'no_prototypes':  'w/o Prototypes (SE only)',
+        'baseline':       'ConvNeXt-Tiny Baseline',
     }
 
     if args.condition == 'all':

@@ -5,8 +5,8 @@ Uses a custom dataset built from raw file paths -- no folder merging,
 no ConcatDataset, no Subset. Bulletproof data integrity.
 
 Architecture matches proposed/train_wavecoatnet.py exactly:
-  MS-WG-FDCA (2-level DWT) + 4 ViT (stochastic depth) + CBAM + PA-DTS
-  (0.6-0.95, proto_temperature, ortho loss) + PGAP + DPA + SCTR
+  WG-FDCA + 4 ViT (stochastic depth) + CBAM + PA-DTS (0.6-0.95,
+  proto_temperature, ortho loss) + PGAP + DPA + SCTR
 
 Usage:
     python evaluation/crossval.py
@@ -160,29 +160,21 @@ class CBAM(nn.Module):
 
 
 class WaveletFrequencyDecomposedCrossAttention(nn.Module):
-    """Multi-Scale WG-FDCA with 2-level DWT (matches train_wavecoatnet.py)."""
     def __init__(self, dim_low=96, dim_high=192, num_heads=4, dropout=0.1):
         super().__init__()
         self.num_heads = num_heads
         self.head_dim = dim_high // num_heads
         self.scale = self.head_dim ** -0.5
-        # Ultra-low (LL2), mid-freq (LH2+HL2+HH2), high-freq (LH1+HL1+HH1)
-        self.proj_ultra_low = nn.Sequential(
+        self.proj_low_freq = nn.Sequential(
             nn.Conv2d(dim_low, dim_high, 1, bias=False), nn.BatchNorm2d(dim_high), nn.GELU())
-        self.proj_mid_freq = nn.Sequential(
-            nn.Conv2d(dim_low * 3, dim_high, 1, bias=False), nn.BatchNorm2d(dim_high), nn.GELU())
         self.proj_high_freq = nn.Sequential(
             nn.Conv2d(dim_low * 3, dim_high, 1, bias=False), nn.BatchNorm2d(dim_high), nn.GELU())
         self.q_proj = nn.Linear(dim_high, dim_high, bias=False)
         self.norm_q = nn.LayerNorm(dim_high)
-        self.k_proj_ultra_low = nn.Linear(dim_high, dim_high, bias=False)
-        self.v_proj_ultra_low = nn.Linear(dim_high, dim_high, bias=False)
-        self.out_proj_ultra_low = nn.Linear(dim_high, dim_high)
-        self.norm_kv_ultra_low = nn.LayerNorm(dim_high)
-        self.k_proj_mid = nn.Linear(dim_high, dim_high, bias=False)
-        self.v_proj_mid = nn.Linear(dim_high, dim_high, bias=False)
-        self.out_proj_mid = nn.Linear(dim_high, dim_high)
-        self.norm_kv_mid = nn.LayerNorm(dim_high)
+        self.k_proj_low = nn.Linear(dim_high, dim_high, bias=False)
+        self.v_proj_low = nn.Linear(dim_high, dim_high, bias=False)
+        self.out_proj_low = nn.Linear(dim_high, dim_high)
+        self.norm_kv_low = nn.LayerNorm(dim_high)
         self.k_proj_high = nn.Linear(dim_high, dim_high, bias=False)
         self.v_proj_high = nn.Linear(dim_high, dim_high, bias=False)
         self.out_proj_high = nn.Linear(dim_high, dim_high)
@@ -190,8 +182,8 @@ class WaveletFrequencyDecomposedCrossAttention(nn.Module):
         self.attn_drop = nn.Dropout(dropout * 0.5)
         self.proj_drop = nn.Dropout(dropout)
         self.freq_gate = nn.Sequential(
-            nn.Linear(dim_high * 3, dim_high // 4), nn.GELU(), nn.Dropout(dropout),
-            nn.Linear(dim_high // 4, 3))  # 3-way gate, softmax in forward()
+            nn.Linear(dim_high * 2, dim_high // 4), nn.GELU(), nn.Dropout(dropout),
+            nn.Linear(dim_high // 4, 1), nn.Sigmoid())
         self.ffn = nn.Sequential(
             nn.Linear(dim_high, dim_high * 2), nn.GELU(), nn.Dropout(dropout),
             nn.Linear(dim_high * 2, dim_high), nn.Dropout(dropout))
@@ -208,21 +200,14 @@ class WaveletFrequencyDecomposedCrossAttention(nn.Module):
         return self.proj_drop(out_proj(out))
 
     def forward(self, feat_low, feat_high):
-        # Level-1 DWT
-        ll1, lh1, hl1, hh1 = haar_dwt_2d(feat_low)
-        # Level-2 DWT on LL1
-        ll2, lh2, hl2, hh2 = haar_dwt_2d(ll1)
-        ultra_low_tokens = self.proj_ultra_low(ll2).flatten(2).transpose(1, 2)
-        mid_tokens = self.proj_mid_freq(torch.cat([lh2, hl2, hh2], dim=1)).flatten(2).transpose(1, 2)
-        high_tokens = self.proj_high_freq(torch.cat([lh1, hl1, hh1], dim=1)).flatten(2).transpose(1, 2)
+        ll, lh, hl, hh = haar_dwt_2d(feat_low)
+        low_tokens = self.proj_low_freq(ll).flatten(2).transpose(1, 2)
+        high_tokens = self.proj_high_freq(torch.cat([lh, hl, hh], dim=1)).flatten(2).transpose(1, 2)
         q_tokens = feat_high.flatten(2).transpose(1, 2)
-        ultra_low_out = self._cross_attend(q_tokens, ultra_low_tokens, self.k_proj_ultra_low, self.v_proj_ultra_low, self.out_proj_ultra_low, self.norm_kv_ultra_low)
-        mid_out = self._cross_attend(q_tokens, mid_tokens, self.k_proj_mid, self.v_proj_mid, self.out_proj_mid, self.norm_kv_mid)
+        low_out = self._cross_attend(q_tokens, low_tokens, self.k_proj_low, self.v_proj_low, self.out_proj_low, self.norm_kv_low)
         high_out = self._cross_attend(q_tokens, high_tokens, self.k_proj_high, self.v_proj_high, self.out_proj_high, self.norm_kv_high)
-        gate_logits = self.freq_gate(torch.cat([ultra_low_out, mid_out, high_out], dim=-1))
-        gw = F.softmax(gate_logits, dim=-1)
-        fused_ca = gw[:,:,0:1]*ultra_low_out + gw[:,:,1:2]*mid_out + gw[:,:,2:3]*high_out
-        fused = q_tokens + fused_ca
+        gate = self.freq_gate(torch.cat([low_out, high_out], dim=-1))
+        fused = q_tokens + gate * high_out + (1 - gate) * low_out
         return fused + self.ffn(self.norm_ffn(fused))
 
 
