@@ -386,10 +386,10 @@ class PrototypeAnchoredTokenSelection(nn.Module):
         keep_ratio = self.min_keep + keep_ratio * (self.max_keep - self.min_keep)
 
         k_val = torch.clamp(
-            (keep_ratio * N).long(),
+            (keep_ratio.mean() * N).long(),
             min=max(1, int(self.min_keep * N)),
             max=int(self.max_keep * N)
-        )[0].item()
+        ).item()
 
         _, top_k_idx = torch.topk(importance, k_val, dim=1)
         batch_idx = torch.arange(B, device=x.device).unsqueeze(1).expand(-1, k_val)
@@ -486,16 +486,20 @@ class WaveCoAtNet(nn.Module):
     WaveCoAtNet: Wavelet-enhanced Convolutional Attention Network
     for ichthyosis classification.
 
-    Architecture:
-      1. ConvNeXt-Tiny stem + stages 1-2 (local feature extraction)
-      2. WG-FDCA -- wavelet-decomposed frequency-selective cross-attention
-      3. Positional embedding + ViT transformer blocks (global context)
-      4. ConvNeXt stages 3-4 + CBAM (deep semantic features with attention)
-      5. PA-DTS -- prototype-anchored adaptive token selection
-      6. PGAP -- prototype-guided attention pooling on selected tokens
-      7. DPA -- dual-path aggregation blending selective + holistic paths
-      8. LayerNorm -> Linear classifier
-      9. SCTR -- auxiliary contrastive loss on embeddings (training only)
+    Architecture (parallel-path design preserving pretrained features):
+
+      CNN path (pretrained, preserved):
+        stem -> stage1 -> stage2 -> stage3 -> CBAM3 -> stage4 -> CBAM4
+
+      ViT path (novel, parallel):
+        WG-FDCA(stage1, stage2) -> pos_embed -> ViT blocks -> project 192->768
+
+      Fusion:
+        cnn_tokens + vit_projected (residual enrichment)
+
+      Downstream:
+        PA-DTS -> PGAP -> DPA -> classifier
+        SCTR auxiliary loss (training only)
 
     ConvNeXt-Tiny channel progression: 96 -> 192 -> 384 -> 768
     """
@@ -520,25 +524,33 @@ class WaveCoAtNet(nn.Module):
         self.cbam4 = CBAM(768, reduction=16, kernel_size=7)
 
         vit_dim = 192
+        final_embed_dim = 768
 
         # Novel Module 1: Wavelet-Guided Frequency-Decomposed Cross-Attention
         self.wg_fdca = WaveletFrequencyDecomposedCrossAttention(
             dim_low=96, dim_high=192, num_heads=4, dropout=dropout
         )
 
-        # ViT blocks for global context modelling
+        # ViT blocks for global context modelling (parallel path)
         num_vit_tokens = 28 * 28
         self.pos_embed = nn.Parameter(torch.zeros(1, num_vit_tokens, vit_dim))
         nn.init.trunc_normal_(self.pos_embed, std=0.02)
         self.vit_blocks = nn.ModuleList([
             Block(dim=vit_dim, num_heads=6,
                   proj_drop=dropout, attn_drop=dropout * 0.5,
-                  drop_path=0.2 * (i + 1) / vit_blocks)
+                  drop_path=0.1 * (i + 1) / vit_blocks)
             for i in range(vit_blocks)
         ])
 
+        # Bridge ViT (192-dim) -> CNN (768-dim) for parallel fusion
+        self.vit_to_cnn_proj = nn.Sequential(
+            nn.LayerNorm(vit_dim),
+            nn.Linear(vit_dim, final_embed_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
         # Novel Module 2: Prototype-Anchored Dynamic Token Selection
-        final_embed_dim = 768
         self.pa_dts = PrototypeAnchoredTokenSelection(
             dim=final_embed_dim, num_classes=num_classes,
             min_keep=0.6, max_keep=0.95, dropout=dropout * 0.25
@@ -550,11 +562,11 @@ class WaveCoAtNet(nn.Module):
         )
 
         # Novel Module 4: Prototype-Guided Attention Pooling (PGAP)
-        self.pgap_proj = nn.Linear(final_embed_dim, final_embed_dim)
+        # Operates directly in 768-dim token space (same as prototypes)
         self.pgap_norm = nn.LayerNorm(final_embed_dim)
 
         # Novel Module 5: Dual-Path Aggregation (DPA)
-        self.gap_proj = nn.Linear(final_embed_dim, final_embed_dim)
+        # No gap_proj — raw tokens already in same space as prototypes
         self.dpa_gate = nn.Sequential(
             nn.Linear(final_embed_dim * 2, final_embed_dim // 4),
             nn.GELU(),
@@ -577,38 +589,45 @@ class WaveCoAtNet(nn.Module):
         feat_stage1 = self.cnn_stage1(x)
         feat_stage2 = self.cnn_stage2(feat_stage1)
 
+        # ---- ViT path (parallel, novel) ----
         # WG-FDCA: wavelet-guided cross-attention fusion
-        fused_tokens = self.wg_fdca(feat_stage1, feat_stage2)
-
-        # ViT global context
-        fused_tokens = fused_tokens + self.pos_embed
+        vit_tokens = self.wg_fdca(feat_stage1, feat_stage2)  # (B, 784, 192)
+        vit_tokens = vit_tokens + self.pos_embed
         for blk in self.vit_blocks:
-            fused_tokens = blk(fused_tokens)
+            vit_tokens = blk(vit_tokens)
 
-        # Reshape back to spatial and pass through deep CNN stages + CBAM
-        B = fused_tokens.shape[0]
-        x = fused_tokens.transpose(1, 2).reshape(B, 192, 28, 28)
-        x = self.cbam3(self.cnn_stage3(x))
+        # ---- CNN path (pretrained, preserved) ----
+        # Stage2 -> Stage3 -> CBAM -> Stage4 -> CBAM (no ViT corruption)
+        B = feat_stage2.shape[0]
+        x = self.cbam3(self.cnn_stage3(feat_stage2))
         x = self.cbam4(self.cnn_stage4(x))
+        cnn_tokens = x.flatten(2).transpose(1, 2)  # (B, 49, 768)
 
-        # Tokenize final features
-        x = x.flatten(2).transpose(1, 2)
+        # ---- Parallel fusion ----
+        # Project ViT tokens (192-dim) -> 768-dim, pool to match CNN spatial
+        vit_proj = self.vit_to_cnn_proj(vit_tokens)  # (B, 784, 768)
+        vit_proj = vit_proj.transpose(1, 2).reshape(B, 768, 28, 28)
+        vit_proj = F.adaptive_avg_pool2d(vit_proj, (7, 7))  # (B, 768, 7, 7)
+        vit_proj = vit_proj.flatten(2).transpose(1, 2)      # (B, 49, 768)
+
+        tokens = cnn_tokens + vit_proj  # residual enrichment
 
         # PA-DTS: prototype-anchored token selection
-        selected, _ = self.pa_dts(x)
+        selected, _ = self.pa_dts(tokens)
 
         # PGAP: Prototype-Guided Attention Pooling
+        # (tokens, prototypes, and embeddings all in same 768-dim space)
         pgap_tokens = self.pgap_norm(selected)
-        pgap_queries = self.pgap_proj(pgap_tokens)
         proto_normed = F.normalize(self.pa_dts.prototypes.detach(), dim=-1)
-        query_normed = F.normalize(pgap_queries, dim=-1)
+        query_normed = F.normalize(pgap_tokens, dim=-1)
         proto_affinity = query_normed @ proto_normed.T
         diag_relevance = proto_affinity.max(dim=-1).values
         attn_weights = F.softmax(diag_relevance, dim=-1).unsqueeze(-1)
         pgap_embed = (selected * attn_weights).sum(dim=1)
 
         # DPA: Dual-Path Aggregation
-        gap_embed = self.gap_proj(x.mean(dim=1))
+        # (raw mean pooling — same space as prototypes, no projection needed)
+        gap_embed = tokens.mean(dim=1)
         dpa_g = self.dpa_gate(torch.cat([pgap_embed, gap_embed], dim=-1))
         embeddings = dpa_g * pgap_embed + (1 - dpa_g) * gap_embed
 

@@ -248,7 +248,7 @@ class PrototypeAnchoredTokenSelection(nn.Module):
         importance = F.softmax(w[0]*_zn(proto_aff) + w[1]*_zn(proto_ent) + w[2]*_zn(ch_score), dim=-1)
         g = self.keep_predictor(torch.cat([x.mean(dim=1), torch.stack([importance.mean(1), importance.std(1), importance.max(1).values], -1)], -1)).squeeze(-1)
         g = self.min_keep + g * (self.max_keep - self.min_keep)
-        k = torch.clamp((g*N).long(), min=max(1, int(self.min_keep*N)), max=int(self.max_keep*N))[0].item()
+        k = torch.clamp((g.mean()*N).long(), min=max(1, int(self.min_keep*N)), max=int(self.max_keep*N)).item()
         _, idx = torch.topk(importance, k, dim=1)
         bi = torch.arange(B, device=x.device).unsqueeze(1).expand(-1, k)
         sel = x[bi, idx] * (1 + importance[bi, idx].unsqueeze(-1))
@@ -290,7 +290,7 @@ class SETokenSelection(nn.Module):
         importance = F.softmax(scores, dim=-1)
         g = self.keep_predictor(torch.cat([x.mean(1), torch.stack([importance.mean(1), importance.std(1), importance.max(1).values], -1)], -1)).squeeze(-1)
         g = self.min_keep + g * (self.max_keep - self.min_keep)
-        k = torch.clamp((g*N).long(), min=max(1, int(self.min_keep*N)), max=int(self.max_keep*N))[0].item()
+        k = torch.clamp((g.mean()*N).long(), min=max(1, int(self.min_keep*N)), max=int(self.max_keep*N)).item()
         _, idx = torch.topk(importance, k, dim=1)
         bi = torch.arange(B, device=x.device).unsqueeze(1).expand(-1, k)
         return out[bi, idx], importance
@@ -386,11 +386,11 @@ def build_model(condition: str, num_classes: int) -> nn.Module:
             use_se_selection = condition == 'no_prototypes'
             use_fixed = condition == 'fixed_pruning'
 
+            final_dim = 768
+
             if has_ca:
-                if use_wavelet:
-                    self.cross_attn = WaveletFrequencyDecomposedCrossAttention(96, 192, 4, DROPOUT)
-                else:
-                    self.cross_attn = PlainCrossAttention(96, 192, 4, DROPOUT)
+                vit_dim = 192
+                self.cross_attn = WaveletFrequencyDecomposedCrossAttention(96, 192, 4, DROPOUT) if use_wavelet else PlainCrossAttention(96, 192, 4, DROPOUT)
 
             if has_vit:
                 vit_dim = 192
@@ -398,10 +398,12 @@ def build_model(condition: str, num_classes: int) -> nn.Module:
                 nn.init.trunc_normal_(self.pos_embed, std=0.02)
                 self.vit_blocks = nn.ModuleList([
                     Block(dim=vit_dim, num_heads=6, proj_drop=DROPOUT, attn_drop=DROPOUT*0.5,
-                          drop_path=0.2 * (i + 1) / VIT_BLOCKS)
+                          drop_path=0.1 * (i + 1) / VIT_BLOCKS)
                     for i in range(VIT_BLOCKS)])
+                # Bridge ViT (192-dim) -> CNN (768-dim) for parallel fusion
+                self.vit_to_cnn_proj = nn.Sequential(
+                    nn.LayerNorm(vit_dim), nn.Linear(vit_dim, final_dim), nn.GELU(), nn.Dropout(DROPOUT))
 
-            final_dim = 768
             if use_padts:
                 self.token_selector = PrototypeAnchoredTokenSelection(final_dim, num_classes, 0.6, 0.95, DROPOUT*0.25)
             elif use_se_selection:
@@ -411,11 +413,11 @@ def build_model(condition: str, num_classes: int) -> nn.Module:
                 self.hse_blocks = nn.ModuleList([FixedSEPruning(final_dim, 16, DROPOUT*0.25) for _ in self.selection_sizes])
 
             if self.use_pgap:
-                self.pgap_proj = nn.Linear(final_dim, final_dim)
+                # No pgap_proj: same space as prototypes
                 self.pgap_norm = nn.LayerNorm(final_dim)
 
             if self.use_dpa:
-                self.gap_proj = nn.Linear(final_dim, final_dim)
+                # No gap_proj: same space as prototypes
                 self.dpa_gate = nn.Sequential(
                     nn.Linear(final_dim * 2, final_dim // 4), nn.GELU(),
                     nn.Linear(final_dim // 4, final_dim), nn.Sigmoid())
@@ -444,32 +446,36 @@ def build_model(condition: str, num_classes: int) -> nn.Module:
             s2 = self.cnn_stage2(s1)
 
             if has_ca:
-                tokens = self.cross_attn(s1, s2)
-                tokens = tokens + self.pos_embed
+                # ViT path (parallel)
+                vit_tokens = self.cross_attn(s1, s2) + self.pos_embed
                 for blk in self.vit_blocks:
-                    tokens = blk(tokens)
-                B = tokens.shape[0]
-                x = tokens.transpose(1, 2).reshape(B, 192, 28, 28)
+                    vit_tokens = blk(vit_tokens)
+                # CNN path (pretrained, preserved)
+                B = s2.shape[0]
+                x = self.cbam3(self.cnn_stage3(s2))
+                x = self.cbam4(self.cnn_stage4(x))
+                cnn_tokens = x.flatten(2).transpose(1, 2)  # (B, 49, 768)
+                # Parallel fusion
+                vit_proj = self.vit_to_cnn_proj(vit_tokens)
+                vit_proj = vit_proj.transpose(1, 2).reshape(B, 768, 28, 28)
+                vit_proj = F.adaptive_avg_pool2d(vit_proj, (7, 7)).flatten(2).transpose(1, 2)
+                x = cnn_tokens + vit_proj
             else:
-                x = s2
-
-            x = self.cbam3(self.cnn_stage3(x))
-            x = self.cbam4(self.cnn_stage4(x))
-            x = x.flatten(2).transpose(1, 2)
+                x = self.cbam3(self.cnn_stage3(s2))
+                x = self.cbam4(self.cnn_stage4(x))
+                x = x.flatten(2).transpose(1, 2)
 
             if use_padts or use_se_sel:
                 selected, _ = self.token_selector(x)
                 if self.use_pgap:
                     pgap_tokens = self.pgap_norm(selected)
-                    pgap_queries = self.pgap_proj(pgap_tokens)
                     proto_normed = F.normalize(self.token_selector.prototypes.detach(), dim=-1)
-                    query_normed = F.normalize(pgap_queries, dim=-1)
-                    proto_aff = query_normed @ proto_normed.T
-                    diag_rel = proto_aff.max(dim=-1).values
+                    query_normed = F.normalize(pgap_tokens, dim=-1)
+                    diag_rel = (query_normed @ proto_normed.T).max(dim=-1).values
                     attn_w = F.softmax(diag_rel, dim=-1).unsqueeze(-1)
                     pgap_embed = (selected * attn_w).sum(dim=1)
                     if self.use_dpa:
-                        gap_embed = self.gap_proj(x.mean(dim=1))
+                        gap_embed = x.mean(dim=1)
                         dpa_g = self.dpa_gate(torch.cat([pgap_embed, gap_embed], dim=-1))
                         embeddings = dpa_g * pgap_embed + (1 - dpa_g) * gap_embed
                     else:
