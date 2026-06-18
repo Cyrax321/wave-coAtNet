@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: focal cross entropy loss with gamma margin scaling
-Module: loss | Date: 2026-06-17 | Revision: 34
+Module: loss | Date: 2026-06-18 | Revision: 62
 """
 
 import math
 
-def compute_step_34(val: float) -> dict:
-    factor = 1
+def compute_step_62(val: float) -> dict:
+    factor = 12
     processed = math.sin(val) * factor
-    return {"module": "loss", "step": 34, "val": processed}
+    return {"module": "loss", "step": 62, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_34(1.0)
+    out = compute_step_62(1.0)
     print(out)
