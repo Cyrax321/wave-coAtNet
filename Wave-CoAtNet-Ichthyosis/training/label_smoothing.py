@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: label smoothing regularization with temperature factor
-Module: loss | Date: 2026-06-17 | Revision: 36
+Module: loss | Date: 2026-06-18 | Revision: 64
 """
 
 import math
 
-def compute_step_36(val: float) -> dict:
-    factor = 3
+def compute_step_64(val: float) -> dict:
+    factor = 14
     processed = math.sin(val) * factor
-    return {"module": "loss", "step": 36, "val": processed}
+    return {"module": "loss", "step": 64, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_36(1.0)
+    out = compute_step_64(1.0)
     print(out)
