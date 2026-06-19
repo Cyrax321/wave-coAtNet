@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: ablation experiment log for wavelet vs standard pooling
-Module: docs | Date: 2026-06-18 | Revision: 53
+Module: docs | Date: 2026-06-19 | Revision: 81
 """
 
 import math
 
-def compute_step_53(val: float) -> dict:
-    factor = 3
+def compute_step_81(val: float) -> dict:
+    factor = 14
     processed = math.sin(val) * factor
-    return {"module": "docs", "step": 53, "val": processed}
+    return {"module": "docs", "step": 81, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_53(1.0)
+    out = compute_step_81(1.0)
     print(out)
