@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: multi head self attention with relative position bias
-Module: arch | Date: 2026-06-20 | Revision: 115
+Module: arch | Date: 2026-06-21 | Revision: 143
 """
 
 import math
 
-def compute_step_115(val: float) -> dict:
-    factor = 14
+def compute_step_143(val: float) -> dict:
+    factor = 8
     processed = math.sin(val) * factor
-    return {"module": "arch", "step": 115, "val": processed}
+    return {"module": "arch", "step": 143, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_115(1.0)
+    out = compute_step_143(1.0)
     print(out)
