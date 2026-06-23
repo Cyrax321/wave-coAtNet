@@ -73,10 +73,13 @@ OUT_DIR = os.environ.get("CV_OUT_DIR",
                          "/content/drive/MyDrive/WaveCoAtNet_experiments/cv_matched")
 
 # Baseline zoo. partial_freeze=None trains all; =N keeps last N blocks + head trainable.
+# extra_kwargs are passed straight to timm.create_model (e.g. img_size for DINOv2,
+# whose pretrained pos-embed is built for 518px and must be interpolated to 224).
 BASELINES = {
-    "convnext_tiny": dict(timm_name="convnext_tiny", partial_freeze=None),
-    "swin_tiny":     dict(timm_name="swin_tiny_patch4_window7_224", partial_freeze=None),
-    "dinov2":        dict(timm_name="vit_base_patch14_dinov2.lvd142m", partial_freeze=2),
+    "convnext_tiny": dict(timm_name="convnext_tiny", partial_freeze=None, extra_kwargs={}),
+    "swin_tiny":     dict(timm_name="swin_tiny_patch4_window7_224", partial_freeze=None, extra_kwargs={}),
+    "dinov2":        dict(timm_name="vit_base_patch14_dinov2.lvd142m", partial_freeze=2,
+                          extra_kwargs=dict(img_size=224)),
 }
 ALL_MODELS = ["wavecoatnet"] + list(BASELINES.keys())
 
@@ -377,7 +380,8 @@ class WaveCoAtNet(nn.Module):
 # ── Baseline build / optimizer ───────────────────────────────────────────────
 def build_baseline(key, num_classes):
     cfg = BASELINES[key]
-    model = create_model(cfg["timm_name"], pretrained=True, num_classes=num_classes)
+    model = create_model(cfg["timm_name"], pretrained=True, num_classes=num_classes,
+                         **cfg.get("extra_kwargs", {}))
     if cfg["partial_freeze"] is not None:
         for p in model.parameters():
             p.requires_grad = False
@@ -388,6 +392,10 @@ def build_baseline(key, num_classes):
             for blk in blocks[-cfg["partial_freeze"]:]:
                 for p in blk.parameters():
                     p.requires_grad = True
+        else:
+            # No .blocks attr (unexpected arch) — unfreeze everything to stay trainable.
+            for p in model.parameters():
+                p.requires_grad = True
     return model
 
 
@@ -629,7 +637,14 @@ def main():
     for key in args.models:
         if key != "wavecoatnet" and key not in BASELINES:
             raise SystemExit(f"Unknown model '{key}'. Choices: {ALL_MODELS}")
-        run_model(key, folds, all_paths, all_labels, class_names, train_aug, val_tf)
+        try:
+            run_model(key, folds, all_paths, all_labels, class_names, train_aug, val_tf)
+        except Exception as e:
+            # One model failing (e.g. timm name missing) must not waste the others' hours.
+            import traceback
+            print(f"\n!!! [{key}] FAILED — skipping. Error: {e}")
+            traceback.print_exc()
+            print(f"!!! Other models continue. Fix '{key}' and rerun to fill it in.\n")
 
     summarize(args.models)
 
