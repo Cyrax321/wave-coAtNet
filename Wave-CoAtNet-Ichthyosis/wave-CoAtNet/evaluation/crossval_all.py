@@ -586,6 +586,7 @@ def summarize(models):
 
 
 def main():
+    global EPOCHS
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", nargs="+", default=ALL_MODELS,
                     help=f"subset of {ALL_MODELS}")
@@ -593,7 +594,6 @@ def main():
     ap.add_argument("--summarize", action="store_true", help="rebuild table from saved preds only")
     args = ap.parse_args()
 
-    global EPOCHS
     EPOCHS = args.epochs
 
     if args.summarize:
