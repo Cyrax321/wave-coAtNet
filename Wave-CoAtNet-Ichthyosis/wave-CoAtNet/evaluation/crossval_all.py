@@ -81,7 +81,10 @@ BASELINES = {
     "dinov2":        dict(timm_name="vit_base_patch14_dinov2.lvd142m", partial_freeze=2,
                           extra_kwargs=dict(img_size=224)),
 }
-ALL_MODELS = ["wavecoatnet"] + list(BASELINES.keys())
+# wavecoatnet   = v1 (raw additive fusion)
+# wavecoatnet_v2 = v1 + zero-init LayerScale gate on the ViT/wavelet path
+WAVE_MODELS = ["wavecoatnet", "wavecoatnet_v2"]
+ALL_MODELS = WAVE_MODELS + list(BASELINES.keys())
 
 
 def set_seed(seed):
@@ -322,8 +325,9 @@ class SupervisedContrastiveTokenLoss(nn.Module):
 
 
 class WaveCoAtNet(nn.Module):
-    def __init__(self, num_classes=5, vit_blocks=4, dropout=0.2):
+    def __init__(self, num_classes=5, vit_blocks=4, dropout=0.2, gated_fusion=False):
         super().__init__()
+        self.gated_fusion = gated_fusion
         cnn = create_model('convnext_tiny', pretrained=True, num_classes=0)
         self.cnn_stem   = cnn.stem
         self.cnn_stage1 = cnn.stages[0]
@@ -346,6 +350,9 @@ class WaveCoAtNet(nn.Module):
         self.dpa_gate = nn.Sequential(
             nn.Linear(final_dim * 2, final_dim // 4), nn.GELU(),
             nn.Linear(final_dim // 4, final_dim), nn.Sigmoid())
+        # v2: zero-init LayerScale gate on the ViT/wavelet path (0 => starts as
+        # pure pretrained backbone, then learns how much novel signal to admit).
+        self.fusion_scale = nn.Parameter(torch.zeros(1, 1, final_dim)) if gated_fusion else None
         self.classifier = nn.Sequential(nn.LayerNorm(final_dim), nn.Dropout(dropout), nn.Linear(final_dim, num_classes))
 
     def forward(self, x, return_embeddings=False):
@@ -360,7 +367,10 @@ class WaveCoAtNet(nn.Module):
         cnn_tokens = x.flatten(2).transpose(1, 2)
         vit_proj = self.vit_to_cnn_proj(vit_tokens).transpose(1, 2).reshape(B, 768, 28, 28)
         vit_proj = F.adaptive_avg_pool2d(vit_proj, (7, 7)).flatten(2).transpose(1, 2)
-        tokens = cnn_tokens + vit_proj
+        if self.fusion_scale is not None:
+            tokens = cnn_tokens + self.fusion_scale * vit_proj   # v2: learned zero-init gate
+        else:
+            tokens = cnn_tokens + vit_proj                       # v1: raw add
         selected, _ = self.pa_dts(tokens)
         pgap_tokens = self.pgap_norm(selected)
         proto_normed = F.normalize(self.pa_dts.prototypes.detach(), dim=-1)
@@ -470,7 +480,8 @@ def eval_loader(model, loader):
 
 
 def run_model(key, folds, all_paths, all_labels, class_names, train_aug, val_tf):
-    is_wave = key == "wavecoatnet"
+    is_wave = key in WAVE_MODELS
+    gated = key == "wavecoatnet_v2"
     num_classes = len(class_names)
     scaler = GradScaler('cuda') if DEVICE.type == 'cuda' else None
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -503,7 +514,7 @@ def run_model(key, folds, all_paths, all_labels, class_names, train_aug, val_tf)
                           dtype=torch.float).to(DEVICE)
         criterion = nn.CrossEntropyLoss(weight=cw, label_smoothing=0.1)
 
-        model = (WaveCoAtNet(num_classes, VIT_BLOCKS, DROPOUT) if is_wave
+        model = (WaveCoAtNet(num_classes, VIT_BLOCKS, DROPOUT, gated_fusion=gated) if is_wave
                  else build_baseline(key, num_classes)).to(DEVICE)
         optimizer = make_optimizer(model, is_wave)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
@@ -541,7 +552,7 @@ def run_model(key, folds, all_paths, all_labels, class_names, train_aug, val_tf)
             json.dump(list(class_names), cf)
         # Keep WaveCoAtNet fold-1 checkpoint for Grad-CAM (gradcam.py reads it).
         if is_wave and fold == 0:
-            torch.save(best_state, os.path.join(OUT_DIR, "best_wavecoatnet.pth"))
+            torch.save(best_state, os.path.join(OUT_DIR, f"best_{key}.pth"))
         del model
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -635,7 +646,7 @@ def main():
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
     for key in args.models:
-        if key != "wavecoatnet" and key not in BASELINES:
+        if key not in WAVE_MODELS and key not in BASELINES:
             raise SystemExit(f"Unknown model '{key}'. Choices: {ALL_MODELS}")
         try:
             run_model(key, folds, all_paths, all_labels, class_names, train_aug, val_tf)
