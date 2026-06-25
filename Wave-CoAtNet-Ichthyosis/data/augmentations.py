@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: random color jitter and contrast normalization transform
-Module: data | Date: 2026-06-24 | Revision: 211
+Module: data | Date: 2026-06-25 | Revision: 239
 """
 
 import math
 
-def compute_step_211(val: float) -> dict:
-    factor = 8
+def compute_step_239(val: float) -> dict:
+    factor = 2
     processed = math.sin(val) * factor
-    return {"module": "data", "step": 211, "val": processed}
+    return {"module": "data", "step": 239, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_211(1.0)
+    out = compute_step_239(1.0)
     print(out)
