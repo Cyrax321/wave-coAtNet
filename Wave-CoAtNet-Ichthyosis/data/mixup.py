@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: mixup interpolation for dermal lesion patches
-Module: data | Date: 2026-06-25 | Revision: 238
+Module: data | Date: 2026-06-27 | Revision: 266
 """
 
 import math
 
-def compute_step_238(val: float) -> dict:
-    factor = 1
+def compute_step_266(val: float) -> dict:
+    factor = 12
     processed = math.sin(val) * factor
-    return {"module": "data", "step": 238, "val": processed}
+    return {"module": "data", "step": 266, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_238(1.0)
+    out = compute_step_266(1.0)
     print(out)
