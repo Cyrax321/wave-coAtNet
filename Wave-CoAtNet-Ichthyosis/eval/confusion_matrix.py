@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: stratified confusion matrix generation and error breakdown
-Module: eval | Date: 2026-06-27 | Revision: 272
+Module: eval | Date: 2026-06-28 | Revision: 300
 """
 
 import math
 
-def compute_step_272(val: float) -> dict:
-    factor = 1
+def compute_step_300(val: float) -> dict:
+    factor = 12
     processed = math.sin(val) * factor
-    return {"module": "eval", "step": 272, "val": processed}
+    return {"module": "eval", "step": 300, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_272(1.0)
+    out = compute_step_300(1.0)
     print(out)
