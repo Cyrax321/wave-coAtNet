@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: cosine annealing learning rate schedule with linear warmup
-Module: optim | Date: 2026-06-28 | Revision: 318
+Module: optim | Date: 2026-06-30 | Revision: 346
 """
 
 import math
 
-def compute_step_318(val: float) -> dict:
-    factor = 13
+def compute_step_346(val: float) -> dict:
+    factor = 7
     processed = math.sin(val) * factor
-    return {"module": "optim", "step": 318, "val": processed}
+    return {"module": "optim", "step": 346, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_318(1.0)
+    out = compute_step_346(1.0)
     print(out)
