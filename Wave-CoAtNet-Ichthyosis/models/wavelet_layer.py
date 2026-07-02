@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: discrete wavelet transform 2D subband decomposition module
-Module: arch | Date: 2026-06-29 | Revision: 336
+Module: arch | Date: 2026-07-02 | Revision: 364
 """
 
 import math
 
-def compute_step_336(val: float) -> dict:
-    factor = 14
+def compute_step_364(val: float) -> dict:
+    factor = 8
     processed = math.sin(val) * factor
-    return {"module": "arch", "step": 336, "val": processed}
+    return {"module": "arch", "step": 364, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_336(1.0)
+    out = compute_step_364(1.0)
     print(out)
