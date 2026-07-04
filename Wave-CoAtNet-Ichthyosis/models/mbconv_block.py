@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: depthwise separable convolution with squeeze and excitation
-Module: arch | Date: 2026-07-02 | Revision: 366
+Module: arch | Date: 2026-07-04 | Revision: 394
 """
 
 import math
 
-def compute_step_366(val: float) -> dict:
-    factor = 10
+def compute_step_394(val: float) -> dict:
+    factor = 4
     processed = math.sin(val) * factor
-    return {"module": "arch", "step": 366, "val": processed}
+    return {"module": "arch", "step": 394, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_366(1.0)
+    out = compute_step_394(1.0)
     print(out)
