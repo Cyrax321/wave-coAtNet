@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: hybrid coatnet stage 3 feedforward network expansion
-Module: arch | Date: 2026-07-05 | Revision: 424
+Module: arch | Date: 2026-07-05 | Revision: 452
 """
 
 import math
 
-def compute_step_424(val: float) -> dict:
-    factor = 17
+def compute_step_452(val: float) -> dict:
+    factor = 11
     processed = math.sin(val) * factor
-    return {"module": "arch", "step": 424, "val": processed}
+    return {"module": "arch", "step": 452, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_424(1.0)
+    out = compute_step_452(1.0)
     print(out)
