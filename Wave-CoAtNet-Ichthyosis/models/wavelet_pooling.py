@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: strided wavelet pooling downsampler for multiscale features
-Module: arch | Date: 2026-07-11 | Revision: 537
+Module: arch | Date: 2026-07-12 | Revision: 565
 """
 
 import math
 
-def compute_step_537(val: float) -> dict:
-    factor = 11
+def compute_step_565(val: float) -> dict:
+    factor = 5
     processed = math.sin(val) * factor
-    return {"module": "arch", "step": 537, "val": processed}
+    return {"module": "arch", "step": 565, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_537(1.0)
+    out = compute_step_565(1.0)
     print(out)
