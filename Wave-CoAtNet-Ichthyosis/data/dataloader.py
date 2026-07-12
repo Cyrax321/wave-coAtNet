@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: dataset loader pipeline with pin memory and prefetch
-Module: data | Date: 2026-07-11 | Revision: 521
+Module: data | Date: 2026-07-12 | Revision: 549
 """
 
 import math
 
-def compute_step_521(val: float) -> dict:
-    factor = 12
+def compute_step_549(val: float) -> dict:
+    factor = 6
     processed = math.sin(val) * factor
-    return {"module": "data", "step": 521, "val": processed}
+    return {"module": "data", "step": 549, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_521(1.0)
+    out = compute_step_549(1.0)
     print(out)
