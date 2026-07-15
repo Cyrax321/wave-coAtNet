@@ -1,0 +1,330 @@
+Mounted at /content/drive
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 50.2/50.2 kB 3.9 MB/s eta 0:00:00
+  Preparing metadata (setup.py) ... done
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 42.2/42.2 kB 2.8 MB/s eta 0:00:00
+  Preparing metadata (setup.py) ... done
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 250.0/250.0 kB 8.9 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 66.8/66.8 kB 6.3 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 49.9/49.9 MB 15.2 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.5/1.5 MB 31.5 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.5/5.5 MB 37.3 MB/s eta 0:00:00
+  Building wheel for fvcore (setup.py) ... done
+  Building wheel for iopath (setup.py) ... done
+/content/drive/MyDrive/WaveCoAtNet_experiments
+Cloning into 'wave-coAtNet'...
+remote: Enumerating objects: 100, done.
+remote: Counting objects: 100% (100/100), done.
+remote: Compressing objects: 100% (60/60), done.
+remote: Total 100 (delta 38), reused 97 (delta 35), pack-reused 0 (from 0)
+Receiving objects: 100% (100/100), 128.63 KiB | 1005.00 KiB/s, done.
+Resolving deltas: 100% (38/38), done.
+/content/drive/MyDrive/WaveCoAtNet_experiments/wave-coAtNet/Wave-CoAtNet-Ichthyosis/wave-CoAtNet
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.5/1.5 MB 32.9 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.8/44.8 kB 4.8 MB/s eta 0:00:00
+loading Roboflow workspace...
+loading Roboflow project...
+Downloading Dataset Version Zip in ich-s-1 to folder:: 100% 179569/179569 [00:14<00:00, 11983.88it/s]
+
+Extracting Dataset Version Zip to ich-s-1 in folder:: 100% 2528/2528 [00:26<00:00, 94.25it/s] 
+Total samples: 2508 | Classes: ['Harlequin ichthyosis', 'Healthy skin', 'Ichthyosis vulgaris ', 'Lamellar ichthyosis', 'Netherton syndrome']
+Label distribution: [484 593 804 374 253]
+
+--- Data Integrity Check ---
+  [0] label=0 (Harlequin ichthyosis) path=.../Screenshot-2025-07-07-at-7-14-25-PM_png.rf.5d0af9d3a375a3b648fae95eae36dbc4.jpg
+  [627] label=1 (Healthy skin) path=.../IMG_20230624_095859_jpg.rf.36eda8feec14bd8d663d77a682de6f97.jpg
+  [1254] label=2 (Ichthyosis vulgaris ) path=.../ichthyosisVulgaris_5205_lg-300x225_jpeg.rf.10276cb4a4d3552efb222f27827a136f.jpg
+  [1881] label=3 (Lamellar ichthyosis) path=.../imgi_38_default_jpg.rf.23a3803e5f197399a07e780f39c5fab9.jpg
+  [2507] label=4 (Netherton syndrome) path=.../imgi_115_Jack999_jpg.rf.46be61f50cf1635bb1c72831a6ada49b.jpg
+
+============================================================
+  FOLD 1/5
+============================================================
+  Train: 1805 | Val: 201 | Test: 502
+  Train dist: [348 426 579 270 182]
+  Val dist:   [39 48 64 30 20]
+  Test dist:  [ 97 119 161  74  51]
+  Verify: train[0] shape=torch.Size([3, 224, 224]), label=0 (Harlequin ichthyosis)
+This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+model.safetensors: 100% 114M/114M [00:01<00:00, 63.0MB/s]
+  train:   0% 0/76 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  eval :   0% 0/9 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  Epoch  1/30 | Train Acc: 0.5175 | Val Acc: 0.6965
+  Epoch  6/30 | Train Acc: 0.9507 | Val Acc: 0.9502
+  Epoch 11/30 | Train Acc: 0.9845 | Val Acc: 0.9403
+  Epoch 16/30 | Train Acc: 0.9889 | Val Acc: 0.9552
+  Epoch 21/30 | Train Acc: 0.9911 | Val Acc: 0.9552
+  Epoch 26/30 | Train Acc: 0.9945 | Val Acc: 0.9552
+  Epoch 30/30 | Train Acc: 0.9922 | Val Acc: 0.9552
+  Best Val Acc: 0.9652
+  eval :   0% 0/21 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+
+  Fold 1: Acc=96.61% (CI: 95.02-98.01%)
+    Macro F1=0.9602  Wtd F1=0.9661
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     1.0000    1.0000    1.0000        97
+        Healthy skin     0.9917    1.0000    0.9958       119
+Ichthyosis vulgaris      0.9627    0.9627    0.9627       161
+ Lamellar ichthyosis     0.8919    0.8919    0.8919        74
+  Netherton syndrome     0.9600    0.9412    0.9505        51
+
+            accuracy                         0.9661       502
+           macro avg     0.9613    0.9592    0.9602       502
+        weighted avg     0.9661    0.9661    0.9661       502
+
+
+============================================================
+  FOLD 2/5
+============================================================
+  Train: 1805 | Val: 201 | Test: 502
+  Train dist: [348 427 579 269 182]
+  Val dist:   [39 47 65 30 20]
+  Test dist:  [ 97 119 160  75  51]
+  Verify: train[0] shape=torch.Size([3, 224, 224]), label=0 (Harlequin ichthyosis)
+This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+  train:   0% 0/76 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  eval :   0% 0/9 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  Epoch  1/30 | Train Acc: 0.5801 | Val Acc: 0.8159
+  Epoch  6/30 | Train Acc: 0.9584 | Val Acc: 0.9303
+  Epoch 11/30 | Train Acc: 0.9828 | Val Acc: 0.9602
+  Epoch 16/30 | Train Acc: 0.9889 | Val Acc: 0.9552
+  Epoch 21/30 | Train Acc: 0.9939 | Val Acc: 0.9652
+  Epoch 26/30 | Train Acc: 0.9972 | Val Acc: 0.9602
+  Epoch 30/30 | Train Acc: 0.9934 | Val Acc: 0.9602
+  Best Val Acc: 0.9652
+  eval :   0% 0/21 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+
+  Fold 2: Acc=95.02% (CI: 93.22-96.81%)
+    Macro F1=0.9439  Wtd F1=0.9504
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     0.9895    0.9691    0.9792        97
+        Healthy skin     1.0000    0.9916    0.9958       119
+Ichthyosis vulgaris      0.9494    0.9375    0.9434       160
+ Lamellar ichthyosis     0.8667    0.8667    0.8667        75
+  Netherton syndrome     0.8929    0.9804    0.9346        51
+
+            accuracy                         0.9502       502
+           macro avg     0.9397    0.9490    0.9439       502
+        weighted avg     0.9510    0.9502    0.9504       502
+
+
+============================================================
+  FOLD 3/5
+============================================================
+  Train: 1805 | Val: 201 | Test: 502
+  Train dist: [348 427 579 269 182]
+  Val dist:   [39 48 64 30 20]
+  Test dist:  [ 97 118 161  75  51]
+  Verify: train[0] shape=torch.Size([3, 224, 224]), label=3 (Lamellar ichthyosis)
+This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  train:   0% 0/76 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  eval :   0% 0/9 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  Epoch  1/30 | Train Acc: 0.5723 | Val Acc: 0.8209
+  Epoch  6/30 | Train Acc: 0.9568 | Val Acc: 0.9453
+  Epoch 11/30 | Train Acc: 0.9817 | Val Acc: 0.9602
+  Epoch 16/30 | Train Acc: 0.9928 | Val Acc: 0.9701
+  Epoch 21/30 | Train Acc: 0.9939 | Val Acc: 0.9701
+  Epoch 26/30 | Train Acc: 0.9934 | Val Acc: 0.9652
+  Epoch 30/30 | Train Acc: 0.9939 | Val Acc: 0.9602
+  Best Val Acc: 0.9751
+  eval :   0% 0/21 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+
+  Fold 3: Acc=97.21% (CI: 95.82-98.61%)
+    Macro F1=0.9667  Wtd F1=0.9719
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     0.9798    1.0000    0.9898        97
+        Healthy skin     0.9916    1.0000    0.9958       118
+Ichthyosis vulgaris      0.9691    0.9752    0.9721       161
+ Lamellar ichthyosis     0.9444    0.9067    0.9252        75
+  Netherton syndrome     0.9600    0.9412    0.9505        51
+
+            accuracy                         0.9721       502
+           macro avg     0.9690    0.9646    0.9667       502
+        weighted avg     0.9719    0.9721    0.9719       502
+
+
+============================================================
+  FOLD 4/5
+============================================================
+  Train: 1806 | Val: 201 | Test: 501
+  Train dist: [348 427 579 269 183]
+  Val dist:   [39 48 64 30 20]
+  Test dist:  [ 97 118 161  75  50]
+  Verify: train[0] shape=torch.Size([3, 224, 224]), label=0 (Harlequin ichthyosis)
+This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  train:   0% 0/76 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  eval :   0% 0/9 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  Epoch  1/30 | Train Acc: 0.5891 | Val Acc: 0.8259
+  Epoch  6/30 | Train Acc: 0.9546 | Val Acc: 0.9204
+  Epoch 11/30 | Train Acc: 0.9850 | Val Acc: 0.9552
+  Epoch 16/30 | Train Acc: 0.9889 | Val Acc: 0.9502
+  Epoch 21/30 | Train Acc: 0.9928 | Val Acc: 0.9502
+  Epoch 26/30 | Train Acc: 0.9934 | Val Acc: 0.9552
+  Epoch 30/30 | Train Acc: 0.9950 | Val Acc: 0.9552
+  Best Val Acc: 0.9602
+  eval :   0% 0/21 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+
+  Fold 4: Acc=96.01% (CI: 94.21-97.60%)
+    Macro F1=0.9491  Wtd F1=0.9593
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     0.9796    0.9897    0.9846        97
+        Healthy skin     0.9832    0.9915    0.9873       118
+Ichthyosis vulgaris      0.9578    0.9876    0.9725       161
+ Lamellar ichthyosis     0.9394    0.8267    0.8794        75
+  Netherton syndrome     0.9038    0.9400    0.9216        50
+
+            accuracy                         0.9601       501
+           macro avg     0.9528    0.9471    0.9491       501
+        weighted avg     0.9599    0.9601    0.9593       501
+
+
+============================================================
+  FOLD 5/5
+============================================================
+  Train: 1806 | Val: 201 | Test: 501
+  Train dist: [349 426 579 269 183]
+  Val dist:   [39 48 64 30 20]
+  Test dist:  [ 96 119 161  75  50]
+  Verify: train[0] shape=torch.Size([3, 224, 224]), label=1 (Healthy skin)
+This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  train:   0% 0/76 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  eval :   0% 0/9 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  Epoch  1/30 | Train Acc: 0.5908 | Val Acc: 0.8507
+  Epoch  6/30 | Train Acc: 0.9540 | Val Acc: 0.9701
+  Epoch 11/30 | Train Acc: 0.9806 | Val Acc: 0.9552
+  Epoch 16/30 | Train Acc: 0.9900 | Val Acc: 0.9751
+  Epoch 21/30 | Train Acc: 0.9922 | Val Acc: 0.9751
+  Epoch 26/30 | Train Acc: 0.9928 | Val Acc: 0.9751
+  Epoch 30/30 | Train Acc: 0.9917 | Val Acc: 0.9751
+  Best Val Acc: 0.9751
+  eval :   0% 0/21 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+
+  Fold 5: Acc=96.41% (CI: 94.61-98.00%)
+    Macro F1=0.9553  Wtd F1=0.9635
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     0.9794    0.9896    0.9845        96
+        Healthy skin     1.0000    1.0000    1.0000       119
+Ichthyosis vulgaris      0.9518    0.9814    0.9664       161
+ Lamellar ichthyosis     0.9545    0.8400    0.8936        75
+  Netherton syndrome     0.9057    0.9600    0.9320        50
+
+            accuracy                         0.9641       501
+           macro avg     0.9583    0.9542    0.9553       501
+        weighted avg     0.9643    0.9641    0.9635       501
+
+
+============================================================
+5-Fold Cross-Validation Summary -- WaveCoAtNet
+============================================================
+Accuracy   : 96.25% +/- 0.73%
+Macro F1   : 0.9550 +/- 0.0080
+Weighted F1: 0.9622 +/- 0.0072
+  Fold 1: Acc=96.61%  F1=0.9602
+  Fold 2: Acc=95.02%  F1=0.9439
+  Fold 3: Acc=97.21%  F1=0.9667
+  Fold 4: Acc=96.01%  F1=0.9491
+  Fold 5: Acc=96.41%  F1=0.9553
+
+--- McNemar's Test vs Baselines ---
+  vs EfficientNet-B0 (pretrained): SKIPPED (efficientnet_pretrained_y_pred.npy not found)
+  vs Swin-T (pretrained): SKIPPED (swin_pretrained_y_pred.npy not found)
+  vs ViT-B/16 (pretrained): SKIPPED (vit_pretrained_y_pred.npy not found)
+  vs CoAtNet: SKIPPED (coatnet_y_pred.npy not found)
+  vs GFT: SKIPPED (gft_y_pred.npy not found)
+  vs BiomedCLIP: SKIPPED (biomedclip_y_pred.npy not found)
+  vs DINOv2: SKIPPED (dinov2_y_pred.npy not found)
+
+
+  ============================================================
+  CROSS-VALIDATION SUMMARY
+============================================================
+============================================================
+5-Fold Cross-Validation Summary -- WaveCoAtNet
+============================================================
+Accuracy   : 96.25% +/- 0.73%
+Macro F1   : 0.9550 +/- 0.0080
+Weighted F1: 0.9622 +/- 0.0072
+  Fold 1: Acc=96.61%  F1=0.9602
+  Fold 2: Acc=95.02%  F1=0.9439
+  Fold 3: Acc=97.21%  F1=0.9667
+  Fold 4: Acc=96.01%  F1=0.9491
+  Fold 5: Acc=96.41%  F1=0.9553
+
+fold,accuracy,acc_ci_lo,acc_ci_hi,macro_f1,weighted_f1
+1,0.9661354581673307,0.950199203187251,0.9800796812749004,0.9601871520466181,0.9660903178784098
+2,0.950199203187251,0.9322211155378486,0.9681274900398407,0.9439179179436128,0.9503665430085848
+3,0.9721115537848606,0.9581673306772909,0.9860557768924303,0.966675569905405,0.9718909328717376
+4,0.9600798403193613,0.9421157684630739,0.9760479041916168,0.9490870945103845,0.959318776331588
+5,0.9640718562874252,0.9461077844311377,0.9800399201596807,0.9552945342092777,0.9635031701065272
+
+
+--- HEADLINE CLAIM ---
+  Accuracy: 96.25% +/- 0.81%
+  95% CI:   [95.54%, 96.97%]
+  Macro F1: 0.9550 +/- 0.0090
+
+Cohen's Kappa: 0.9514
+
+Class                      Sensitivity  Specificity
+--------------------------------------------------
+  Harlequin ichthyosis         0.9897      0.9965
+  Healthy skin                 0.9966      0.9979
+  Ichthyosis vulgaris          0.9689      0.9800
+  Lamellar ichthyosis          0.8663      0.9864
+  Netherton syndrome           0.9526      0.9911
+
+Saved: figures/crossval_folds_bar.png
+/tmp/ipykernel_751/337929820.py:98: MatplotlibDeprecationWarning: The 'labels' parameter of boxplot() has been renamed 'tick_labels' since Matplotlib 3.9; support for the old name will be dropped in 3.11.
+  bp = ax.boxplot(data, patch_artist=True, labels=['Accuracy', 'Macro F1', 'Weighted F1'],
+Saved: figures/crossval_boxplot.png
+Saved: figures/crossval_cm_grid.png
+
+
+
+
+--- Saved Files ---
+  crossval_results.csv (0.5 KB)
+  crossval_summary.txt (0.4 KB)
+  fold_1_cm.png (189.5 KB)
+  fold_1_y_pred.npy (4.0 KB)
+  fold_1_y_true.npy (4.0 KB)
+  fold_2_cm.png (191.1 KB)
+  fold_2_y_pred.npy (4.0 KB)
+  fold_2_y_true.npy (4.0 KB)
+  fold_3_cm.png (190.7 KB)
+  fold_3_y_pred.npy (4.0 KB)
+  fold_3_y_true.npy (4.0 KB)
+  fold_4_cm.png (189.3 KB)
+  fold_4_y_pred.npy (4.0 KB)
+  fold_4_y_true.npy (4.0 KB)
+  fold_5_cm.png (190.7 KB)
+  fold_5_y_pred.npy (4.0 KB)
+  fold_5_y_true.npy (4.0 KB)
+
+  ============================================================
+  COMPREHENSIVE 5-FOLD METRICS (Mean ± SD)
+============================================================
+Metric               | Mean ± SD      
+----------------------------------------
+Accuracy             |  96.25 ± 0.81 %
+Macro_Precision      |  95.62 ± 1.09 %
+Macro_Recall         |  95.48 ± 0.72 %
+Macro_F1             |  95.50 ± 0.90 %
+Macro_Specificity    |  99.04 ± 0.20 %
+============================================================
+  COMPREHENSIVE 5-FOLD METRICS (Mean ± SD)
+============================================================
+Metric               | Mean ± SD      
+----------------------------------------
+Accuracy             |  96.25 ± 0.81 %
+Macro_Precision      |  95.62 ± 1.09 %
+Macro_Recall         |  95.48 ± 0.72 %
+Macro_F1             |  95.50 ± 0.90 %
+Macro_Specificity    |  99.04 ± 0.20 %
+Cohen_Kappa          | 0.9514 ± 0.0105
+/tmp/ipykernel_751/139283917.py:88: FutureWarning: 

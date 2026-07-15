@@ -1,0 +1,444 @@
+Mounted at /content/drive
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 50.2/50.2 kB 5.0 MB/s eta 0:00:00
+  Preparing metadata (setup.py) ... done
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 42.2/42.2 kB 4.2 MB/s eta 0:00:00
+  Preparing metadata (setup.py) ... done
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 250.0/250.0 kB 13.9 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 66.8/66.8 kB 2.5 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 49.9/49.9 MB 16.5 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.5/1.5 MB 89.5 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.5/5.5 MB 138.5 MB/s eta 0:00:00
+  Building wheel for fvcore (setup.py) ... done
+  Building wheel for iopath (setup.py) ... done
+/content/drive/MyDrive/WaveCoAtNet_experiments
+Cloning into 'wave-coAtNet'...
+remote: Enumerating objects: 100, done.
+remote: Counting objects: 100% (100/100), done.
+remote: Compressing objects: 100% (60/60), done.
+remote: Total 100 (delta 38), reused 97 (delta 35), pack-reused 0 (from 0)
+Receiving objects: 100% (100/100), 128.63 KiB | 4.95 MiB/s, done.
+Resolving deltas: 100% (38/38), done.
+/content/drive/MyDrive/WaveCoAtNet_experiments/wave-coAtNet/Wave-CoAtNet-Ichthyosis/wave-CoAtNet
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.5/1.5 MB 36.2 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.8/44.8 kB 5.1 MB/s eta 0:00:00
+Running ALL 10 ablation conditions sequentially...
+
+============================================================
+  [1/10] Ablation: WaveCoAtNet (Full)
+============================================================
+Device: cuda | Seed: 42
+
+============================================================
+  [2/10] Ablation: w/o DPA (PGAP only)
+============================================================
+Device: cuda | Seed: 42
+
+============================================================
+  [3/10] Ablation: w/o PGAP+DPA (Mean Pool)
+============================================================
+Device: cuda | Seed: 42
+
+============================================================
+  [4/10] Ablation: w/o WG-FDCA (Plain CA)
+============================================================
+Device: cuda | Seed: 42
+
+============================================================
+  [5/10] Ablation: w/o Transformer
+============================================================
+Device: cuda | Seed: 42
+
+============================================================
+  [6/10] Ablation: w/o PA-DTS (GAP)
+============================================================
+Device: cuda | Seed: 42
+
+============================================================
+  [7/10] Ablation: w/o SCTR (CE only)
+============================================================
+Device: cuda | Seed: 42
+
+============================================================
+  [8/10] Ablation: w/ Fixed Pruning
+============================================================
+Device: cuda | Seed: 42
+
+============================================================
+  [9/10] Ablation: w/o Prototypes (SE only)
+============================================================
+Device: cuda | Seed: 42
+
+============================================================
+  [10/10] Ablation: ConvNeXt-Tiny Baseline
+============================================================
+Device: cuda | Seed: 42
+loading Roboflow workspace...
+loading Roboflow project...
+Downloading Dataset Version Zip in ich-s-1 to folder:: 100% 179569/179569 [00:14<00:00, 12112.78it/s]
+
+Extracting Dataset Version Zip to ich-s-1 in folder:: 100% 2528/2528 [00:29<00:00, 85.26it/s] 
+This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+
+============================================================
+  [1/10] Training: WaveCoAtNet (Full)
+============================================================
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+model.safetensors: 100% 114M/114M [00:01<00:00, 100MB/s]
+  train:   0% 0/92 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  eval :   0% 0/7 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  Epoch  1/30 | Train 0.5847 | Val 0.8312
+  Epoch  6/30 | Train 0.9617 | Val 0.8896
+  Epoch 11/30 | Train 0.9836 | Val 0.8896
+  Epoch 16/30 | Train 0.9900 | Val 0.9286
+  Epoch 21/30 | Train 0.9941 | Val 0.9221
+  Epoch 26/30 | Train 0.9945 | Val 0.9286
+  Epoch 30/30 | Train 0.9954 | Val 0.9286
+  eval :   0% 0/7 [00:00<?, ?it/s]This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+                                          
+--- Ablation Results: WaveCoAtNet (Full) ---
+  Test Accuracy  : 91.14%
+  Macro F1       : 0.8746
+  Weighted F1    : 0.9061
+  Parameters     : 31,690,772
+  Training time  : 1116.9s
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     0.9677    0.9375    0.9524        32
+        Healthy skin     0.9783    1.0000    0.9890        45
+Ichthyosis vulgaris      0.8980    0.9565    0.9263        46
+ Lamellar ichthyosis     0.8571    0.5455    0.6667        22
+  Netherton syndrome     0.7222    1.0000    0.8387        13
+
+            accuracy                         0.9114       158
+           macro avg     0.8847    0.8879    0.8746       158
+        weighted avg     0.9148    0.9114    0.9061       158
+
+Results appended to ablation_results.csv
+
+============================================================
+  [2/10] Training: w/o DPA (PGAP only)
+============================================================
+  Epoch  1/30 | Train 0.5651 | Val 0.8312
+  Epoch  6/30 | Train 0.9599 | Val 0.8896
+  Epoch 11/30 | Train 0.9850 | Val 0.9091
+  Epoch 16/30 | Train 0.9895 | Val 0.9026
+  Epoch 21/30 | Train 0.9936 | Val 0.9091
+  Epoch 26/30 | Train 0.9959 | Val 0.9091
+  Epoch 30/30 | Train 0.9964 | Val 0.9091
+                                          
+--- Ablation Results: w/o DPA (PGAP only) ---
+  Test Accuracy  : 92.41%
+  Macro F1       : 0.8907
+  Weighted F1    : 0.9247
+  Parameters     : 31,247,444
+  Training time  : 1034.1s
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     1.0000    0.9062    0.9508        32
+        Healthy skin     0.9778    0.9778    0.9778        45
+Ichthyosis vulgaris      0.9574    0.9783    0.9677        46
+ Lamellar ichthyosis     0.8824    0.6818    0.7692        22
+  Netherton syndrome     0.6500    1.0000    0.7879        13
+
+            accuracy                         0.9241       158
+           macro avg     0.8935    0.9088    0.8907       158
+        weighted avg     0.9361    0.9241    0.9247       158
+
+Results appended to ablation_results.csv
+
+============================================================
+  [3/10] Training: w/o PGAP+DPA (Mean Pool)
+============================================================
+  Epoch  1/30 | Train 0.5961 | Val 0.7987
+  Epoch  6/30 | Train 0.9526 | Val 0.9026
+  Epoch 11/30 | Train 0.9836 | Val 0.8961
+  Epoch 16/30 | Train 0.9904 | Val 0.9026
+  Epoch 21/30 | Train 0.9950 | Val 0.9026
+  Epoch 26/30 | Train 0.9964 | Val 0.9026
+  Epoch 30/30 | Train 0.9964 | Val 0.9026
+                                          
+--- Ablation Results: w/o PGAP+DPA (Mean Pool) ---
+  Test Accuracy  : 91.14%
+  Macro F1       : 0.8758
+  Weighted F1    : 0.9121
+  Parameters     : 31,245,908
+  Training time  : 1012.9s
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     1.0000    0.9375    0.9677        32
+        Healthy skin     1.0000    0.9778    0.9888        45
+Ichthyosis vulgaris      0.9348    0.9348    0.9348        46
+ Lamellar ichthyosis     0.7778    0.6364    0.7000        22
+  Netherton syndrome     0.6500    1.0000    0.7879        13
+
+            accuracy                         0.9114       158
+           macro avg     0.8725    0.8973    0.8758       158
+        weighted avg     0.9213    0.9114    0.9121       158
+
+Results appended to ablation_results.csv
+
+============================================================
+  [4/10] Training: w/o WG-FDCA (Plain CA)
+============================================================
+  Epoch  1/30 | Train 0.5961 | Val 0.7208
+  Epoch  6/30 | Train 0.9681 | Val 0.8506
+  Epoch 11/30 | Train 0.9909 | Val 0.8896
+  Epoch 16/30 | Train 0.9904 | Val 0.9026
+  Epoch 21/30 | Train 0.9932 | Val 0.8961
+  Epoch 26/30 | Train 0.9968 | Val 0.8961
+  Epoch 30/30 | Train 0.9950 | Val 0.9026
+                                          
+--- Ablation Results: w/o WG-FDCA (Plain CA) ---
+  Test Accuracy  : 88.61%
+  Macro F1       : 0.8413
+  Weighted F1    : 0.8875
+  Parameters     : 31,505,395
+  Training time  : 985.0s
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     1.0000    0.9062    0.9508        32
+        Healthy skin     1.0000    0.9333    0.9655        45
+Ichthyosis vulgaris      0.9167    0.9565    0.9362        46
+ Lamellar ichthyosis     0.7500    0.5455    0.6316        22
+  Netherton syndrome     0.5652    1.0000    0.7222        13
+
+            accuracy                         0.8861       158
+           macro avg     0.8464    0.8683    0.8413       158
+        weighted avg     0.9052    0.8861    0.8875       158
+
+Results appended to ablation_results.csv
+
+============================================================
+  [5/10] Training: w/o Transformer
+============================================================
+  Epoch  1/30 | Train 0.6712 | Val 0.8182
+  Epoch  6/30 | Train 0.9672 | Val 0.8831
+  Epoch 11/30 | Train 0.9909 | Val 0.9026
+  Epoch 16/30 | Train 0.9927 | Val 0.8961
+  Epoch 21/30 | Train 0.9959 | Val 0.9091
+  Epoch 26/30 | Train 0.9964 | Val 0.9026
+  Epoch 30/30 | Train 0.9982 | Val 0.9026
+                                          
+--- Ablation Results: w/o Transformer ---
+  Test Accuracy  : 91.14%
+  Macro F1       : 0.8716
+  Weighted F1    : 0.9098
+  Parameters     : 28,605,357
+  Training time  : 855.2s
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     1.0000    0.9062    0.9508        32
+        Healthy skin     0.9783    1.0000    0.9890        45
+Ichthyosis vulgaris      0.9362    0.9565    0.9462        46
+ Lamellar ichthyosis     0.8125    0.5909    0.6842        22
+  Netherton syndrome     0.6500    1.0000    0.7879        13
+
+            accuracy                         0.9114       158
+           macro avg     0.8754    0.8907    0.8716       158
+        weighted avg     0.9203    0.9114    0.9098       158
+
+Results appended to ablation_results.csv
+
+============================================================
+  [6/10] Training: w/o PA-DTS (GAP)
+============================================================
+  Epoch  1/30 | Train 0.6093 | Val 0.7338
+  Epoch  6/30 | Train 0.9672 | Val 0.8961
+  Epoch 11/30 | Train 0.9895 | Val 0.9026
+  Epoch 16/30 | Train 0.9895 | Val 0.9091
+  Epoch 21/30 | Train 0.9945 | Val 0.8896
+  Epoch 26/30 | Train 0.9954 | Val 0.8896
+  Epoch 30/30 | Train 0.9954 | Val 0.9026
+                                          
+--- Ablation Results: w/o PA-DTS (GAP) ---
+  Test Accuracy  : 90.51%
+  Macro F1       : 0.8580
+  Weighted F1    : 0.8996
+  Parameters     : 31,182,670
+  Training time  : 1005.1s
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     0.9375    0.9375    0.9375        32
+        Healthy skin     1.0000    1.0000    1.0000        45
+Ichthyosis vulgaris      0.9167    0.9565    0.9362        46
+ Lamellar ichthyosis     0.8462    0.5000    0.6286        22
+  Netherton syndrome     0.6500    1.0000    0.7879        13
+
+            accuracy                         0.9051       158
+           macro avg     0.8701    0.8788    0.8580       158
+        weighted avg     0.9129    0.9051    0.8996       158
+
+Results appended to ablation_results.csv
+
+============================================================
+  [7/10] Training: w/o SCTR (CE only)
+============================================================
+  Epoch  1/30 | Train 0.6052 | Val 0.7727
+  Epoch  6/30 | Train 0.9727 | Val 0.8896
+  Epoch 11/30 | Train 0.9863 | Val 0.9026
+  Epoch 16/30 | Train 0.9909 | Val 0.9026
+  Epoch 21/30 | Train 0.9936 | Val 0.9026
+  Epoch 26/30 | Train 0.9954 | Val 0.9091
+  Epoch 30/30 | Train 0.9973 | Val 0.9091
+                                          
+--- Ablation Results: w/o SCTR (CE only) ---
+  Test Accuracy  : 89.87%
+  Macro F1       : 0.8562
+  Weighted F1    : 0.8960
+  Parameters     : 31,001,748
+  Training time  : 1050.5s
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     0.9375    0.9375    0.9375        32
+        Healthy skin     0.9783    1.0000    0.9890        45
+Ichthyosis vulgaris      0.9333    0.9130    0.9231        46
+ Lamellar ichthyosis     0.8571    0.5455    0.6667        22
+  Netherton syndrome     0.6190    1.0000    0.7647        13
+
+            accuracy                         0.8987       158
+           macro avg     0.8651    0.8792    0.8562       158
+        weighted avg     0.9105    0.8987    0.8960       158
+
+Results appended to ablation_results.csv
+
+============================================================
+  [8/10] Training: w/ Fixed Pruning
+============================================================
+  Epoch  1/30 | Train 0.5947 | Val 0.8117
+  Epoch  6/30 | Train 0.9617 | Val 0.8831
+  Epoch 11/30 | Train 0.9877 | Val 0.9026
+  Epoch 16/30 | Train 0.9909 | Val 0.9026
+  Epoch 21/30 | Train 0.9950 | Val 0.9091
+  Epoch 26/30 | Train 0.9936 | Val 0.9026
+  Epoch 30/30 | Train 0.9964 | Val 0.8961
+                                          
+--- Ablation Results: w/ Fixed Pruning ---
+  Test Accuracy  : 91.14%
+  Macro F1       : 0.8781
+  Weighted F1    : 0.9101
+  Parameters     : 30,642,734
+  Training time  : 1032.4s
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     0.9375    0.9375    0.9375        32
+        Healthy skin     0.9783    1.0000    0.9890        45
+Ichthyosis vulgaris      0.9545    0.9130    0.9333        46
+ Lamellar ichthyosis     0.8235    0.6364    0.7179        22
+  Netherton syndrome     0.6842    1.0000    0.8125        13
+
+            accuracy                         0.9114       158
+           macro avg     0.8756    0.8974    0.8781       158
+        weighted avg     0.9174    0.9114    0.9101       158
+
+Results appended to ablation_results.csv
+
+============================================================
+  [9/10] Training: w/o Prototypes (SE only)
+============================================================
+  Epoch  1/30 | Train 0.6015 | Val 0.7792
+  Epoch  6/30 | Train 0.9745 | Val 0.8571
+  Epoch 11/30 | Train 0.9900 | Val 0.8766
+  Epoch 16/30 | Train 0.9904 | Val 0.8961
+  Epoch 21/30 | Train 0.9954 | Val 0.8961
+  Epoch 26/30 | Train 0.9977 | Val 0.8961
+  Epoch 30/30 | Train 0.9954 | Val 0.8896
+                                          
+--- Ablation Results: w/o Prototypes (SE only) ---
+  Test Accuracy  : 90.51%
+  Macro F1       : 0.8688
+  Weighted F1    : 0.9005
+  Parameters     : 31,283,487
+  Training time  : 1013.8s
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     1.0000    0.9062    0.9508        32
+        Healthy skin     0.9783    1.0000    0.9890        45
+Ichthyosis vulgaris      0.8800    0.9565    0.9167        46
+ Lamellar ichthyosis     0.8000    0.5455    0.6486        22
+  Netherton syndrome     0.7222    1.0000    0.8387        13
+
+            accuracy                         0.9051       158
+           macro avg     0.8761    0.8816    0.8688       158
+        weighted avg     0.9082    0.9051    0.9005       158
+
+Results appended to ablation_results.csv
+
+============================================================
+  [10/10] Training: ConvNeXt-Tiny Baseline
+============================================================
+  Epoch  1/30 | Train 0.6548 | Val 0.7857
+  Epoch  6/30 | Train 0.9872 | Val 0.9026
+  Epoch 11/30 | Train 0.9932 | Val 0.9026
+  Epoch 16/30 | Train 0.9954 | Val 0.9091
+  Epoch 21/30 | Train 0.9959 | Val 0.9156
+  Epoch 26/30 | Train 0.9977 | Val 0.9156
+  Epoch 30/30 | Train 0.9973 | Val 0.9156
+                                          
+--- Ablation Results: ConvNeXt-Tiny Baseline ---
+  Test Accuracy  : 91.77%
+  Macro F1       : 0.8790
+  Weighted F1    : 0.9168
+  Parameters     : 27,823,973
+  Training time  : 839.1s
+                      precision    recall  f1-score   support
+
+Harlequin ichthyosis     1.0000    0.9375    0.9677        32
+        Healthy skin     0.9783    1.0000    0.9890        45
+Ichthyosis vulgaris      0.9362    0.9565    0.9462        46
+ Lamellar ichthyosis     0.8235    0.6364    0.7179        22
+  Netherton syndrome     0.6667    0.9231    0.7742        13
+
+            accuracy                         0.9177       158
+           macro avg     0.8809    0.8907    0.8790       158
+        weighted avg     0.9232    0.9177    0.9168       158
+
+Results appended to ablation_results.csv
+
+============================================================
+  ALL 10 ABLATION CONDITIONS COMPLETE
+============================================================
+
+Loaded: full
+  Loaded: no_dpa
+  Loaded: no_pgap
+  Loaded: no_wgfdca
+  Loaded: no_transformer
+  Loaded: no_padts
+  Loaded: no_sctr
+  Loaded: fixed_pruning
+  Loaded: no_prototypes
+  Loaded: baseline
+
+Loaded 10/10 conditions
+
+================================================================================
+  ABLATION RESULTS TABLE
+================================================================================
+Condition                    Acc%    dAcc     F1%     dF1   Kappa
+------------------------------------------------------------
+WaveCoAtNet (Full)         91.14       -  87.46       - 0.8842
+w/o DPA                    92.41   +1.27  89.07   +1.61 0.9013
+w/o PGAP+DPA               91.14   +0.00  87.58   +0.12 0.8851
+w/o WG-FDCA                88.61   -2.53  84.13   -3.34 0.8525
+w/o Transformer            91.14   +0.00  87.16   -0.30 0.8847
+w/o PA-DTS (GAP)           90.51   -0.63  85.80   -1.66 0.8763
+w/o SCTR                   89.87   -1.27  85.62   -1.84 0.8685
+w/ Fixed Pruning           91.14   +0.00  87.81   +0.34 0.8849
+w/o Prototypes             90.51   -0.63  86.88   -0.58 0.8759
+ConvNeXt-Tiny Baseline     91.77   +0.63  87.90   +0.44 0.8928
+
+Saved: figures/ablation_bar_detailed.png
+Saved: figures/ablation_f1_heatmap.png
+
+================================================================================
+  McNEMAR: Full vs Each Ablation
+================================================================================
+  w/o DPA                   chi2=0.125  p=0.7237  ns
+  w/o PGAP+DPA              chi2=0.100  p=0.7518  ns
+  w/o WG-FDCA               chi2=1.125  p=0.2888  ns
+  w/o Transformer           chi2=0.250  p=0.6171  ns
+  w/o PA-DTS (GAP)          chi2=0.000  p=1.0000  ns
+  w/o SCTR                  chi2=0.250  p=0.6171  ns
+  w/ Fixed Pruning          chi2=0.167  p=0.6831  ns
+  w/o Prototypes            chi2=0.000  p=1.0000  ns|
+  ConvNeXt-Tiny Baseline    chi2=0.000  p=1.0000  ns
