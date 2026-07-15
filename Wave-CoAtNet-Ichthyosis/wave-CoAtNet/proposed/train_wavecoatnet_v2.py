@@ -1,45 +1,28 @@
 """
-WaveCoAtNet: Wavelet-enhanced Convolutional Attention Network
-             with Frequency-Decomposed Cross-Attention,
+WaveCoAtNet v3: Wavelet-enhanced Convolutional Attention Network
+             with Hierarchical Frequency-Decomposed Cross-Attention,
+             Cross-Modal Token Fusion,
              Prototype-Anchored Token Selection, and
              Supervised Contrastive Token Regularization
 ==============================================================================
 Proposed method for ichthyosis subtype classification.
 
-Novel contributions:
-  1. Wavelet-Guided Frequency-Decomposed Cross-Attention (WG-FDCA) --
-     Decomposes stage1 CNN features via 2D Haar DWT into structure (LL) and
-     texture (LH+HL+HH) sub-bands, then performs frequency-selective cross-
-     attention from stage2 queries with a learned per-token frequency gate.
+Novel contributions (v3 enhancements over v2):
+  1. Hierarchical Wavelet-Guided Frequency-Decomposed Cross-Attention (H-WG-FDCA)
+  2. Cross-Modal Token Fusion (bidirectional CNN↔ViT attention)
+  3. Multi-Scale Feature Pyramid (fuses all 4 CNN stages)
+  4. CNN Positional Embeddings
+  5. Gated Cross-Modal Fusion (learnable per-token gate)
+  6. Stochastic Depth (DropPath) in ViT blocks (0.0 → 0.15)
+  7. Multi-Scale CBAM (after stage2, stage3, stage4)
+  8. 8 ViT blocks (vs 4 in v1/v2)
+  9. 2-layer MLP classifier (vs 1-layer)
 
-  2. Prototype-Anchored Dynamic Token Selection (PA-DTS) --
-     Selects diagnostically relevant tokens by scoring them against learnable
-     class prototypes (updated via EMA). Uses a learnable prototype
-     temperature for adaptive similarity sharpness. Combines prototype
-     affinity, affinity entropy, and channel attention for importance
-     ranking with adaptive keep-ratio prediction.
-
-  3. Supervised Contrastive Token Regularization (SCTR) --
-     Auxiliary SupCon loss on mean-pooled token embeddings that forces same-
-     class representations to cluster and different-class to separate,
-     improving inter-class discriminability for rare subtypes.
-
-  4. Prototype-Guided Attention Pooling (PGAP) --
-     Replaces naive mean-pooling with prototype-affinity-weighted
-     aggregation of selected tokens, sharpening classifier focus on
-     diagnostically relevant evidence.
-
-  5. Dual-Path Aggregation (DPA) --
-     Combines the selective pathway (PA-DTS + PGAP) with a holistic global
-     average pooling pathway through a learned content-dependent gate.
-     Ensures diagnostic information is preserved even when token selection
-     is aggressive or prototype attention is immature during early training.
-
-  6. CBAM (Convolutional Block Attention Module) --
-     Channel and spatial attention applied after deep CNN stages (stage3,
-     stage4) to recalibrate feature responses. Channel attention highlights
-     informative feature channels while spatial attention focuses on
-     discriminative spatial regions (e.g. lesion boundaries, scale patterns).
+Training protocol (matches baselines for fair comparison):
+  - CosineAnnealingLR, 30 epochs
+  - TrivialAugmentWide + RandomErasing
+  - CE loss with label smoothing + SCTR auxiliary loss
+  - No Mixup, no TTA, no focal loss
 """
 
 import os
@@ -83,15 +66,16 @@ torch.backends.cudnn.benchmark = True
 API_KEY = "gXuxxWEMFJ8nK73o7pN7"
 TARGET_SIZE = (224, 224)
 BATCH_SIZE = 24
-EPOCHS = 30
-LR_BACKBONE = 1e-5          # lower LR for pretrained ConvNeXt stages (matches baselines)
-LR_HEAD = 1e-4              # higher LR for novel modules + classifier (matches baselines)
+MAX_EPOCHS = 30
+PATIENCE = 8
+LR_BACKBONE = 1e-5
+LR_HEAD = 1e-4
 WEIGHT_DECAY = 0.01
 DROPOUT = 0.2
-SCTR_WEIGHT = 0.1           # weight for contrastive loss term
-PROTO_MOMENTUM = 0.99       # EMA momentum for prototype tracking
-ORTHO_WEIGHT = 0.05         # weight for cross-prototype orthogonality loss
-PROTO_WARMUP_EPOCHS = 5     # epochs with fast prototype adaptation (momentum=0.9)
+SCTR_WEIGHT = 0.1
+ORTHO_WEIGHT = 0.05
+PROTO_MOMENTUM = 0.99
+PROTO_WARMUP_EPOCHS = 5
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -99,15 +83,11 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Utility: 2D Haar Discrete Wavelet Transform
 # ===========================
 def haar_dwt_2d(x: torch.Tensor):
-    """
-    Apply 2D Haar Discrete Wavelet Transform to feature maps.
-
-    Args:
-        x: (B, C, H, W) with H and W even
-
-    Returns:
-        ll, lh, hl, hh: each (B, C, H/2, W/2)
-    """
+    H, W = x.shape[2:]
+    pad_h = H % 2
+    pad_w = W % 2
+    if pad_h > 0 or pad_w > 0:
+        x = F.pad(x, (0, pad_w, 0, pad_h), mode='replicate')
     x_l = (x[:, :, :, 0::2] + x[:, :, :, 1::2]) * 0.5
     x_h = (x[:, :, :, 0::2] - x[:, :, :, 1::2]) * 0.5
     ll = (x_l[:, :, 0::2, :] + x_l[:, :, 1::2, :]) * 0.5
@@ -118,7 +98,7 @@ def haar_dwt_2d(x: torch.Tensor):
 
 
 # ===========================
-# Novel Module 6: CBAM (Convolutional Block Attention Module)
+# Module 6: CBAM (Convolutional Block Attention Module)
 # ===========================
 class ChannelAttention(nn.Module):
     def __init__(self, channels, reduction=16):
@@ -143,28 +123,15 @@ class SpatialAttention(nn.Module):
     def __init__(self, kernel_size=7):
         super().__init__()
         self.conv = nn.Conv2d(2, 1, kernel_size, padding=kernel_size // 2, bias=False)
-        self.bn = nn.BatchNorm2d(1)
 
     def forward(self, x):
         avg_out = x.mean(dim=1, keepdim=True)
         max_out = x.max(dim=1, keepdim=True).values
-        attn = torch.sigmoid(self.bn(self.conv(torch.cat([avg_out, max_out], dim=1))))
+        attn = torch.sigmoid(self.conv(torch.cat([avg_out, max_out], dim=1)))
         return x * attn
 
 
 class CBAM(nn.Module):
-    """
-    Convolutional Block Attention Module.
-
-    Sequentially applies channel attention (which features are important)
-    and spatial attention (where those features are important). Applied
-    after deep CNN stages to recalibrate features before tokenization.
-
-    Args:
-        channels:  Number of input channels
-        reduction: Channel attention bottleneck reduction ratio
-        kernel_size: Spatial attention convolution kernel size
-    """
     def __init__(self, channels, reduction=16, kernel_size=7):
         super().__init__()
         self.channel_attn = ChannelAttention(channels, reduction)
@@ -177,30 +144,9 @@ class CBAM(nn.Module):
 
 
 # ===========================
-# Novel Module 1: Wavelet-Guided Frequency-Decomposed Cross-Attention
+# Module 1: Wavelet Frequency-Decomposed Cross-Attention
 # ===========================
 class WaveletFrequencyDecomposedCrossAttention(nn.Module):
-    """
-    Frequency-selective cross-attention between CNN stages via wavelet
-    decomposition.
-
-    Stage1 features are decomposed via 2D Haar DWT into:
-      - Low-frequency stream (LL sub-band): captures structural patterns
-        like plate-like fissures in Harlequin Ichthyosis
-      - High-frequency stream (LH+HL+HH): captures fine texture details
-        like fish-scale patterns in Ichthyosis Vulgaris
-
-    Stage2 features serve as queries. Two separate cross-attention operations
-    attend to the low-freq and high-freq key/value streams. A learnable
-    per-token frequency gate dynamically balances structure vs texture
-    based on image content.
-
-    Args:
-        dim_low:   Channel dimension of stage1 output (96 for ConvNeXt-Tiny)
-        dim_high:  Channel dimension of stage2 output (192 for ConvNeXt-Tiny)
-        num_heads: Number of attention heads per stream
-        dropout:   Dropout rate
-    """
     def __init__(self, dim_low: int = 96, dim_high: int = 192,
                  num_heads: int = 4, dropout: float = 0.1):
         super().__init__()
@@ -299,25 +245,9 @@ class WaveletFrequencyDecomposedCrossAttention(nn.Module):
 
 
 # ===========================
-# Novel Module 2: Prototype-Anchored Dynamic Token Selection
+# Module 2: Prototype-Anchored Dynamic Token Selection
 # ===========================
 class PrototypeAnchoredTokenSelection(nn.Module):
-    """
-    Selects diagnostically relevant tokens by scoring them against learnable
-    class prototypes that are updated via exponential moving average.
-
-    Token importance is a learned combination of three signals:
-      1. Prototype affinity -- cosine similarity to nearest class prototype
-      2. Affinity entropy -- entropy of similarity distribution
-      3. Channel attention -- SE-style global channel scoring
-
-    Args:
-        dim:         Token embedding dimension
-        num_classes: Number of disease classes
-        min_keep:    Minimum fraction of tokens to retain
-        max_keep:    Maximum fraction of tokens to retain
-        dropout:     Dropout rate
-    """
     def __init__(self, dim: int, num_classes: int = 5,
                  min_keep: float = 0.6, max_keep: float = 0.95,
                  dropout: float = 0.0):
@@ -327,8 +257,9 @@ class PrototypeAnchoredTokenSelection(nn.Module):
         self.min_keep = min_keep
         self.max_keep = max_keep
 
-        self.register_buffer('prototypes', torch.randn(num_classes, dim) * 0.02)
-        self.proto_temperature = nn.Parameter(torch.tensor(1.0))
+        self.register_buffer('prototypes', torch.zeros(num_classes, dim))
+        self.register_buffer('proto_initialized', torch.zeros(num_classes, dtype=torch.bool))
+        self.register_buffer('proto_temperature', torch.tensor(1.0))
 
         mid = max(1, dim // 16)
         self.channel_scorer = nn.Sequential(
@@ -337,13 +268,6 @@ class PrototypeAnchoredTokenSelection(nn.Module):
         )
 
         self.importance_weights = nn.Parameter(torch.tensor([1.0, 0.5, 0.5]))
-
-        self.keep_predictor = nn.Sequential(
-            nn.Linear(dim + 3, 32),
-            nn.GELU(),
-            nn.Linear(32, 1),
-            nn.Sigmoid(),
-        )
 
         self.norm = nn.LayerNorm(dim)
 
@@ -370,26 +294,13 @@ class PrototypeAnchoredTokenSelection(nn.Module):
         channel_score_n = _znorm(channel_score)
 
         w = F.softmax(self.importance_weights, dim=0)
-        combined = (w[0] * proto_affinity_n +
+        combined = (w[0] * proto_affinity_n -
                     w[1] * proto_entropy_n +
                     w[2] * channel_score_n)
         importance = F.softmax(combined, dim=-1)
 
-        global_feat = x.mean(dim=1)
-        imp_stats = torch.stack([
-            importance.mean(dim=1),
-            importance.std(dim=1),
-            importance.max(dim=1).values,
-        ], dim=-1)
-        keep_ratio = self.keep_predictor(
-            torch.cat([global_feat, imp_stats], dim=-1)).squeeze(-1)
-        keep_ratio = self.min_keep + keep_ratio * (self.max_keep - self.min_keep)
-
-        k_val = torch.clamp(
-            (keep_ratio.mean() * N).long(),
-            min=max(1, int(self.min_keep * N)),
-            max=int(self.max_keep * N)
-        ).item()
+        k_val = int((self.min_keep + self.max_keep) * 0.5 * N)
+        k_val = max(1, min(k_val, int(self.max_keep * N)))
 
         _, top_k_idx = torch.topk(importance, k_val, dim=1)
         batch_idx = torch.arange(B, device=x.device).unsqueeze(1).expand(-1, k_val)
@@ -405,12 +316,25 @@ class PrototypeAnchoredTokenSelection(nn.Module):
                           momentum: float = 0.99):
         for c in range(self.num_classes):
             mask = labels == c
-            if mask.sum() > 0:
+            n_samples = mask.sum().item()
+            if n_samples > 0:
                 class_mean = embeddings[mask].mean(dim=0)
-                self.prototypes[c] = (momentum * self.prototypes[c] +
-                                      (1.0 - momentum) * class_mean)
+                if not self.proto_initialized[c]:
+                    self.prototypes[c] = class_mean
+                    self.proto_initialized[c] = True
+                else:
+                    effective_momentum = momentum ** n_samples
+                    self.prototypes[c] = (effective_momentum * self.prototypes[c] +
+                                          (1.0 - effective_momentum) * class_mean)
 
-    def prototype_orthogonality_loss(self) -> torch.Tensor:
+    def prototype_orthogonality_loss(self, embeddings: torch.Tensor = None) -> torch.Tensor:
+        """If embeddings provided, compute inter-class embedding separability (has gradients).
+        Otherwise fall back to prototype orthogonality (monitoring only)."""
+        if embeddings is not None and embeddings.requires_grad:
+            e_norm = F.normalize(embeddings, dim=-1)
+            sim = e_norm @ e_norm.T
+            eye = torch.eye(sim.shape[0], device=sim.device)
+            return ((sim - eye) ** 2).mean()
         p_norm = F.normalize(self.prototypes, dim=-1)
         sim = p_norm @ p_norm.T
         eye = torch.eye(self.num_classes, device=sim.device)
@@ -419,17 +343,9 @@ class PrototypeAnchoredTokenSelection(nn.Module):
 
 
 # ===========================
-# Novel Module 3: Supervised Contrastive Token Regularization
+# Module 3: Supervised Contrastive Token Regularization
 # ===========================
 class SupervisedContrastiveTokenLoss(nn.Module):
-    """
-    Supervised contrastive loss applied to mean-pooled token embeddings.
-
-    Args:
-        embed_dim:   Dimension of input embeddings
-        proj_dim:    Dimension of contrastive projection space
-        temperature: Softmax temperature for similarity scaling
-    """
     def __init__(self, embed_dim: int, proj_dim: int = 128,
                  temperature: float = 0.07):
         super().__init__()
@@ -441,7 +357,7 @@ class SupervisedContrastiveTokenLoss(nn.Module):
         )
 
     def forward(self, embeddings: torch.Tensor, labels: torch.Tensor,
-                prototypes: torch.Tensor = None) -> torch.Tensor:
+                prototypes: torch.Tensor = None, class_weights: torch.Tensor = None) -> torch.Tensor:
         B = embeddings.shape[0]
         if B < 2:
             return torch.tensor(0.0, device=embeddings.device, requires_grad=True)
@@ -458,7 +374,8 @@ class SupervisedContrastiveTokenLoss(nn.Module):
         if has_pos.sum() == 0:
             supcon_loss = torch.tensor(0.0, device=embeddings.device, requires_grad=True)
         else:
-            sim_max = sim.max(dim=1, keepdim=True).values.detach()
+            sim_masked = sim.masked_fill(~self_mask, -1e9)
+            sim_max = sim_masked.max(dim=1, keepdim=True).values.detach()
             sim = sim - sim_max
 
             exp_sim = torch.exp(sim) * self_mask.float()
@@ -472,33 +389,160 @@ class SupervisedContrastiveTokenLoss(nn.Module):
             p_norm = F.normalize(prototypes.detach(), dim=-1)
             e_norm = F.normalize(embeddings, dim=-1)
             proto_sim = e_norm @ p_norm.T / self.temperature
-            alignment_loss = F.cross_entropy(proto_sim, labels)
+            alignment_loss = F.cross_entropy(proto_sim, labels, weight=class_weights)
             return supcon_loss + 0.5 * alignment_loss
 
         return supcon_loss
 
 
 # ===========================
-# WaveCoAtNet Model
+# Module 1b: Hierarchical Wavelet Cross-Attention (Stage2->Stage3)
+# ===========================
+class HierarchicalWaveletCrossAttention(nn.Module):
+    """Second-scale wavelet cross-attention: stage2(192) -> stage3(384)."""
+    def __init__(self, dim_low=192, dim_high=384, num_heads=6, dropout=0.1):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = dim_high // num_heads
+        self.scale = self.head_dim ** -0.5
+
+        self.proj_low_freq = nn.Sequential(
+            nn.Conv2d(dim_low, dim_high, 1, bias=False),
+            nn.BatchNorm2d(dim_high), nn.GELU())
+        self.proj_high_freq = nn.Sequential(
+            nn.Conv2d(dim_low * 3, dim_high, 1, bias=False),
+            nn.BatchNorm2d(dim_high), nn.GELU())
+
+        self.q_proj = nn.Linear(dim_high, dim_high, bias=False)
+        self.norm_q = nn.LayerNorm(dim_high)
+        self.k_proj_low = nn.Linear(dim_high, dim_high, bias=False)
+        self.v_proj_low = nn.Linear(dim_high, dim_high, bias=False)
+        self.out_proj_low = nn.Linear(dim_high, dim_high)
+        self.norm_kv_low = nn.LayerNorm(dim_high)
+        self.k_proj_high = nn.Linear(dim_high, dim_high, bias=False)
+        self.v_proj_high = nn.Linear(dim_high, dim_high, bias=False)
+        self.out_proj_high = nn.Linear(dim_high, dim_high)
+        self.norm_kv_high = nn.LayerNorm(dim_high)
+
+        self.attn_drop = nn.Dropout(dropout * 0.5)
+        self.proj_drop = nn.Dropout(dropout)
+        self.freq_gate = nn.Sequential(
+            nn.Linear(dim_high * 2, dim_high // 4), nn.GELU(),
+            nn.Dropout(dropout), nn.Linear(dim_high // 4, 1), nn.Sigmoid())
+        self.ffn = nn.Sequential(
+            nn.Linear(dim_high, dim_high * 2), nn.GELU(),
+            nn.Dropout(dropout), nn.Linear(dim_high * 2, dim_high),
+            nn.Dropout(dropout))
+        self.norm_ffn = nn.LayerNorm(dim_high)
+
+    def _cross_attend(self, q, kv, k_proj, v_proj, out_proj, norm_kv):
+        B = q.shape[0]
+        kv = norm_kv(kv)
+        Q = self.q_proj(self.norm_q(q)).reshape(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        K = k_proj(kv).reshape(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        V = v_proj(kv).reshape(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        attn = self.attn_drop((Q @ K.transpose(-2, -1) * self.scale).softmax(dim=-1))
+        out = (attn @ V).transpose(1, 2).reshape(B, -1, self.num_heads * self.head_dim)
+        return self.proj_drop(out_proj(out))
+
+    def forward(self, feat_low, feat_high):
+        ll, lh, hl, hh = haar_dwt_2d(feat_low)
+        low_tok = self.proj_low_freq(ll).flatten(2).transpose(1, 2)
+        high_tok = self.proj_high_freq(torch.cat([lh, hl, hh], dim=1)).flatten(2).transpose(1, 2)
+        q = feat_high.flatten(2).transpose(1, 2)
+        lo = self._cross_attend(q, low_tok, self.k_proj_low, self.v_proj_low, self.out_proj_low, self.norm_kv_low)
+        hi = self._cross_attend(q, high_tok, self.k_proj_high, self.v_proj_high, self.out_proj_high, self.norm_kv_high)
+        gate = self.freq_gate(torch.cat([lo, hi], dim=-1))
+        fused = q + gate * hi + (1 - gate) * lo
+        return fused + self.ffn(self.norm_ffn(fused))
+
+
+# ===========================
+# Module: Cross-Modal Token Fusion
+# ===========================
+class CrossModalFusion(nn.Module):
+    """Bidirectional cross-attention between CNN and ViT tokens."""
+    def __init__(self, dim=768, num_heads=8, dropout=0.1):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim ** -0.5
+
+        self.norm_cnn = nn.LayerNorm(dim)
+        self.norm_vit = nn.LayerNorm(dim)
+
+        self.q_cnn = nn.Linear(dim, dim, bias=False)
+        self.k_vit = nn.Linear(dim, dim, bias=False)
+        self.v_vit = nn.Linear(dim, dim, bias=False)
+        self.out_cnn = nn.Linear(dim, dim)
+
+        self.q_vit = nn.Linear(dim, dim, bias=False)
+        self.k_cnn = nn.Linear(dim, dim, bias=False)
+        self.v_cnn = nn.Linear(dim, dim, bias=False)
+        self.out_vit = nn.Linear(dim, dim)
+
+        self.attn_drop = nn.Dropout(dropout * 0.5)
+        self.proj_drop = nn.Dropout(dropout)
+        self.gate_cnn = nn.Sequential(
+            nn.Linear(dim * 2, dim // 4), nn.GELU(),
+            nn.Linear(dim // 4, dim), nn.Sigmoid())
+        self.gate_vit = nn.Sequential(
+            nn.Linear(dim * 2, dim // 4), nn.GELU(),
+            nn.Linear(dim // 4, dim), nn.Sigmoid())
+
+        self.ffn = nn.Sequential(
+            nn.Linear(dim, dim * 2), nn.GELU(),
+            nn.Dropout(dropout), nn.Linear(dim * 2, dim), nn.Dropout(dropout))
+        self.norm_ffn = nn.LayerNorm(dim)
+
+    def _attend(self, q_tok, kv_tok, q_proj, k_proj, v_proj, out_proj):
+        B = q_tok.shape[0]
+        Q = q_proj(self.norm_cnn(q_tok) if q_proj is self.q_cnn else self.norm_vit(q_tok))
+        K = k_proj(self.norm_vit(kv_tok) if k_proj is self.k_vit else self.norm_cnn(kv_tok))
+        V = v_proj(self.norm_vit(kv_tok) if v_proj is self.v_vit else self.norm_cnn(kv_tok))
+        Q = Q.reshape(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        K = K.reshape(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        V = V.reshape(B, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        attn = self.attn_drop((Q @ K.transpose(-2, -1) * self.scale).softmax(dim=-1))
+        out = (attn @ V).transpose(1, 2).reshape(B, -1, self.num_heads * self.head_dim)
+        return self.proj_drop(out_proj(out))
+
+    def forward(self, cnn_tokens, vit_tokens):
+        cnn2vit = self._attend(cnn_tokens, vit_tokens, self.q_cnn, self.k_vit, self.v_vit, self.out_cnn)
+        vit2cnn = self._attend(vit_tokens, cnn_tokens, self.q_vit, self.k_cnn, self.v_cnn, self.out_vit)
+
+        cat_feat = torch.cat([cnn2vit.mean(1), vit2cnn.mean(1)], dim=-1)
+        g_cnn = self.gate_cnn(cat_feat).unsqueeze(1)
+        g_vit = self.gate_vit(cat_feat).unsqueeze(1)
+        cnn_out = cnn_tokens + g_cnn * cnn2vit
+        vit_out = vit_tokens + g_vit * vit2cnn
+
+        cnn_out = cnn_out + self.ffn(self.norm_ffn(cnn_out))
+        vit_out = vit_out + self.ffn(self.norm_ffn(vit_out))
+
+        return cnn_out, vit_out
+
+
+# ===========================
+# WaveCoAtNet v3 Model
 # ===========================
 class WaveCoAtNet(nn.Module):
     """
-    WaveCoAtNet: Wavelet-enhanced Convolutional Attention Network
-    for ichthyosis classification.
+    WaveCoAtNet v3: Wavelet-enhanced Convolutional Attention Network.
 
-    Architecture (parallel-path design preserving pretrained features):
-
+    Architecture:
       CNN path (pretrained, preserved):
-        stem -> stage1 -> stage2 -> stage3 -> CBAM3 -> stage4 -> CBAM4
+        stem -> stage1 -> CBAM2 -> stage2 -> H-WG-FDCA2 -> stage3 -> CBAM3 -> stage4 -> CBAM4
 
       ViT path (novel, parallel):
         WG-FDCA(stage1, stage2) -> pos_embed -> ViT blocks -> project 192->768
 
       Fusion:
-        cnn_tokens + vit_projected (residual enrichment)
+        CrossModalFusion (bidirectional cross-attention between CNN and ViT)
+        + Multi-Scale Feature Pyramid (fuses all 4 CNN stages)
 
       Downstream:
-        PA-DTS -> PGAP -> DPA -> classifier
+        PA-DTS -> PGAP -> DPA -> classifier (2-layer MLP)
         SCTR auxiliary loss (training only)
 
     ConvNeXt-Tiny channel progression: 96 -> 192 -> 384 -> 768
@@ -507,7 +551,7 @@ class WaveCoAtNet(nn.Module):
         self,
         base_model: str = 'convnext_tiny',
         num_classes: int = 5,
-        vit_blocks: int = 2,
+        vit_blocks: int = 8,
         dropout: float = 0.2,
     ):
         super().__init__()
@@ -519,16 +563,29 @@ class WaveCoAtNet(nn.Module):
         self.cnn_stage3 = cnn_backbone.stages[2]
         self.cnn_stage4 = cnn_backbone.stages[3]
 
-        # Novel Module 6: CBAM after deep stages for feature recalibration
+        # Multi-Scale CBAM [v3]: after stage2, stage3, stage4
+        self.cbam2 = CBAM(192, reduction=16, kernel_size=7)
         self.cbam3 = CBAM(384, reduction=16, kernel_size=7)
         self.cbam4 = CBAM(768, reduction=16, kernel_size=7)
 
         vit_dim = 192
         final_embed_dim = 768
 
-        # Novel Module 1: Wavelet-Guided Frequency-Decomposed Cross-Attention
+        # Module 1: Wavelet-Guided Frequency-Decomposed Cross-Attention
         self.wg_fdca = WaveletFrequencyDecomposedCrossAttention(
             dim_low=96, dim_high=192, num_heads=4, dropout=dropout
+        )
+
+        # [v3] Hierarchical Wavelet Cross-Attention (stage2 -> stage3)
+        self.hw_fdca = HierarchicalWaveletCrossAttention(
+            dim_low=192, dim_high=384, num_heads=6, dropout=dropout
+        )
+
+        # [v3] Project hw_fdca output (384-dim) back to ViT dimension (192-dim)
+        self.hw_to_vit_proj = nn.Sequential(
+            nn.LayerNorm(384),
+            nn.Linear(384, vit_dim),
+            nn.GELU(),
         )
 
         # ViT blocks for global context modelling (parallel path)
@@ -538,7 +595,7 @@ class WaveCoAtNet(nn.Module):
         self.vit_blocks = nn.ModuleList([
             Block(dim=vit_dim, num_heads=6,
                   proj_drop=dropout, attn_drop=dropout * 0.5,
-                  drop_path=0.1 * (i + 1) / vit_blocks)
+                  drop_path=i * 0.15 / max(vit_blocks - 1, 1))
             for i in range(vit_blocks)
         ])
 
@@ -550,23 +607,39 @@ class WaveCoAtNet(nn.Module):
             nn.Dropout(dropout),
         )
 
-        # Novel Module 2: Prototype-Anchored Dynamic Token Selection
+        # [v3] Cross-Modal Token Fusion
+        self.cross_modal = CrossModalFusion(dim=final_embed_dim, num_heads=8, dropout=dropout)
+
+        # [v3] CNN positional embeddings (49 tokens for 7x7 spatial grid)
+        self.cnn_pos_embed = nn.Parameter(torch.zeros(1, 49, final_embed_dim))
+        nn.init.trunc_normal_(self.cnn_pos_embed, std=0.02)
+
+        # [v3] Multi-Scale Feature Pyramid: project each CNN stage to final_embed_dim and fuse
+        self.stage1_proj = nn.Sequential(nn.Conv2d(96, final_embed_dim, 1, bias=False), nn.BatchNorm2d(final_embed_dim))
+        self.stage2_proj = nn.Sequential(nn.Conv2d(192, final_embed_dim, 1, bias=False), nn.BatchNorm2d(final_embed_dim))
+        self.stage3_proj = nn.Sequential(nn.Conv2d(384, final_embed_dim, 1, bias=False), nn.BatchNorm2d(final_embed_dim))
+        self.stage4_proj = nn.Sequential(nn.Conv2d(768, final_embed_dim, 1, bias=False), nn.BatchNorm2d(final_embed_dim))
+        self.pyramid_attn = nn.Sequential(
+            nn.Linear(final_embed_dim * 4, final_embed_dim), nn.GELU(),
+            nn.Linear(final_embed_dim, 4), nn.Softmax(dim=-1))
+        self.pyramid_norm = nn.LayerNorm(final_embed_dim)
+
+        # Module 2: Prototype-Anchored Dynamic Token Selection
         self.pa_dts = PrototypeAnchoredTokenSelection(
             dim=final_embed_dim, num_classes=num_classes,
             min_keep=0.6, max_keep=0.95, dropout=dropout * 0.25
         )
 
-        # Novel Module 3: Supervised Contrastive Token Regularization
+        # Module 3: Supervised Contrastive Token Regularization
         self.sctr = SupervisedContrastiveTokenLoss(
             embed_dim=final_embed_dim, proj_dim=128, temperature=0.07
         )
 
-        # Novel Module 4: Prototype-Guided Attention Pooling (PGAP)
-        # Operates directly in 768-dim token space (same as prototypes)
+        # Module 5: Prototype-Guided Attention Pooling (PGAP)
         self.pgap_norm = nn.LayerNorm(final_embed_dim)
+        self.pgap_temperature = nn.Parameter(torch.ones(1) * 0.1)
 
-        # Novel Module 5: Dual-Path Aggregation (DPA)
-        # No gap_proj — raw tokens already in same space as prototypes
+        # Module 6: Dual-Path Aggregation (DPA)
         self.dpa_gate = nn.Sequential(
             nn.Linear(final_embed_dim * 2, final_embed_dim // 4),
             nn.GELU(),
@@ -576,21 +649,31 @@ class WaveCoAtNet(nn.Module):
 
         self.num_vit_blocks = vit_blocks
 
-        # v2: zero-initialised LayerScale gate on the ViT/wavelet path.
-        # Training starts identical to the pure pretrained backbone (the
-        # novel branch contributes exactly 0), then the model *learns* how
-        # much of the wavelet/ViT path to admit. This stops the randomly-
-        # initialised novel branch from corrupting strong pretrained
-        # features early in training — the root cause of v1's lower mean
-        # and high cross-fold variance.
-        self.fusion_scale = nn.Parameter(torch.zeros(1, 1, final_embed_dim))
+        # [v3] Gated Cross-Modal Fusion (replaces static fusion_scale)
+        self.fusion_gate = nn.Sequential(
+            nn.Linear(final_embed_dim * 2, final_embed_dim), nn.GELU(),
+            nn.Linear(final_embed_dim, final_embed_dim), nn.Sigmoid()
+        )
 
-        # Classification head
+        # [v3] Improved classifier head: 2-layer MLP
         self.classifier = nn.Sequential(
             nn.LayerNorm(final_embed_dim),
             nn.Dropout(dropout),
-            nn.Linear(final_embed_dim, num_classes),
+            nn.Linear(final_embed_dim, final_embed_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout * 0.5),
+            nn.Linear(final_embed_dim // 2, num_classes),
         )
+
+    def _fuse_pyramid(self, s1_feat, s2_feat, s3_feat, s4_feat, B):
+        s1_p = F.adaptive_avg_pool2d(self.stage1_proj(s1_feat), (7, 7)).flatten(2).transpose(1, 2)
+        s2_p = F.adaptive_avg_pool2d(self.stage2_proj(s2_feat), (7, 7)).flatten(2).transpose(1, 2)
+        s3_p = F.adaptive_avg_pool2d(self.stage3_proj(s3_feat), (7, 7)).flatten(2).transpose(1, 2)
+        s4_p = F.adaptive_avg_pool2d(self.stage4_proj(s4_feat), (7, 7)).flatten(2).transpose(1, 2)
+        cat = torch.cat([s1_p.mean(1), s2_p.mean(1), s3_p.mean(1), s4_p.mean(1)], dim=-1)
+        w = self.pyramid_attn(cat).unsqueeze(-1).unsqueeze(-1)
+        fused = w[:, 0] * s1_p + w[:, 1] * s2_p + w[:, 2] * s3_p + w[:, 3] * s4_p
+        return self.pyramid_norm(fused)
 
     def forward(self, x: torch.Tensor,
                 return_embeddings: bool = False) -> torch.Tensor:
@@ -598,44 +681,63 @@ class WaveCoAtNet(nn.Module):
         feat_stage1 = self.cnn_stage1(x)
         feat_stage2 = self.cnn_stage2(feat_stage1)
 
+        # [v3] Apply CBAM2 to stage2 features before branching
+        feat_stage2_cbam = self.cbam2(feat_stage2)
+
         # ---- ViT path (parallel, novel) ----
-        # WG-FDCA: wavelet-guided cross-attention fusion
-        vit_tokens = self.wg_fdca(feat_stage1, feat_stage2)  # (B, 784, 192)
+        vit_tokens = self.wg_fdca(feat_stage1, feat_stage2_cbam)  # (B, 784, 192)
+
+        # ---- CNN path (pretrained, preserved) ----
+        B = feat_stage2_cbam.shape[0]
+        feat_stage3 = self.cnn_stage3(feat_stage2_cbam)  # (B, 384, 14, 14)
+
+        # [v3] H-WG-FDCA: hierarchical wavelet cross-attention (stage2 -> stage3)
+        hw_feat = self.hw_fdca(feat_stage2_cbam, feat_stage3)  # (B, 196, 384)
+        hw_proj = self.hw_to_vit_proj(hw_feat)  # (B, 196, 192)
+        hw_proj = hw_proj.transpose(1, 2).reshape(B, 192, 14, 14)
+        hw_proj = F.interpolate(hw_proj, size=(28, 28), mode='bilinear', align_corners=False)
+        hw_proj = hw_proj.flatten(2).transpose(1, 2)  # (B, 784, 192)
+        vit_tokens = vit_tokens + hw_proj
+
         vit_tokens = vit_tokens + self.pos_embed
         for blk in self.vit_blocks:
             vit_tokens = blk(vit_tokens)
 
-        # ---- CNN path (pretrained, preserved) ----
-        # Stage2 -> Stage3 -> CBAM -> Stage4 -> CBAM (no ViT corruption)
-        B = feat_stage2.shape[0]
-        x = self.cbam3(self.cnn_stage3(feat_stage2))
-        x = self.cbam4(self.cnn_stage4(x))
-        cnn_tokens = x.flatten(2).transpose(1, 2)  # (B, 49, 768)
+        # CNN path continues
+        feat_stage3_cbam = self.cbam3(feat_stage3)
+        feat_stage4 = self.cnn_stage4(feat_stage3_cbam)
+        feat_stage4_cbam = self.cbam4(feat_stage4)
+        cnn_tokens = feat_stage4_cbam.flatten(2).transpose(1, 2)  # (B, 49, 768)
 
         # ---- Parallel fusion ----
-        # Project ViT tokens (192-dim) -> 768-dim, pool to match CNN spatial
         vit_proj = self.vit_to_cnn_proj(vit_tokens)  # (B, 784, 768)
         vit_proj = vit_proj.transpose(1, 2).reshape(B, 768, 28, 28)
         vit_proj = F.adaptive_avg_pool2d(vit_proj, (7, 7))  # (B, 768, 7, 7)
         vit_proj = vit_proj.flatten(2).transpose(1, 2)      # (B, 49, 768)
 
-        tokens = cnn_tokens + self.fusion_scale * vit_proj  # v2: learned, zero-init gate
+        # [v3] Cross-Modal Token Fusion
+        cnn_tokens = cnn_tokens + self.cnn_pos_embed
+        cnn_tokens, vit_proj = self.cross_modal(cnn_tokens, vit_proj)
+        gate = self.fusion_gate(torch.cat([cnn_tokens, vit_proj], dim=-1))
+        tokens = gate * cnn_tokens + (1.0 - gate) * vit_proj
+
+        # [v3] Multi-Scale Feature Pyramid (consistent post-CBAM extraction)
+        pyramid = self._fuse_pyramid(feat_stage1, feat_stage2_cbam, feat_stage3_cbam, feat_stage4_cbam, B)
+        tokens = tokens + pyramid
 
         # PA-DTS: prototype-anchored token selection
         selected, _ = self.pa_dts(tokens)
 
         # PGAP: Prototype-Guided Attention Pooling
-        # (tokens, prototypes, and embeddings all in same 768-dim space)
         pgap_tokens = self.pgap_norm(selected)
         proto_normed = F.normalize(self.pa_dts.prototypes.detach(), dim=-1)
         query_normed = F.normalize(pgap_tokens, dim=-1)
         proto_affinity = query_normed @ proto_normed.T
         diag_relevance = proto_affinity.max(dim=-1).values
-        attn_weights = F.softmax(diag_relevance, dim=-1).unsqueeze(-1)
+        attn_weights = F.softmax(diag_relevance / self.pgap_temperature.clamp(min=0.01), dim=-1).unsqueeze(-1)
         pgap_embed = (selected * attn_weights).sum(dim=1)
 
         # DPA: Dual-Path Aggregation
-        # (raw mean pooling — same space as prototypes, no projection needed)
         gap_embed = tokens.mean(dim=1)
         dpa_g = self.dpa_gate(torch.cat([pgap_embed, gap_embed], dim=-1))
         embeddings = dpa_g * pgap_embed + (1 - dpa_g) * gap_embed
@@ -650,10 +752,10 @@ class WaveCoAtNet(nn.Module):
 # ===========================
 # Training & Evaluation Utilities
 # ===========================
-def train_epoch(model, loader, criterion, optimizer, epoch=0, sctr_weight=SCTR_WEIGHT, scaler=None):
+def train_epoch(model, loader, criterion, optimizer, epoch=0, sctr_weight=SCTR_WEIGHT, scaler=None, class_weights=None):
     """Train one epoch with combined CE + SCTR loss and prototype updates."""
     model.train()
-    total_loss, total_ce, total_sctr = 0.0, 0.0, 0.0
+    total_loss, total_ce, total_sctr, total_ortho = 0.0, 0.0, 0.0, 0.0
     all_preds, all_targets = [], []
 
     proto_mom = 0.9 if epoch < PROTO_WARMUP_EPOCHS else PROTO_MOMENTUM
@@ -666,8 +768,8 @@ def train_epoch(model, loader, criterion, optimizer, epoch=0, sctr_weight=SCTR_W
         with autocast('cuda', enabled=use_amp):
             logits, embeddings = model(images, return_embeddings=True)
             ce_loss = criterion(logits, targets)
-            sctr_loss = model.sctr(embeddings.float(), targets, model.pa_dts.prototypes)
-            ortho_loss = model.pa_dts.prototype_orthogonality_loss()
+            sctr_loss = model.sctr(embeddings.float(), targets, model.pa_dts.prototypes, class_weights)
+            ortho_loss = model.pa_dts.prototype_orthogonality_loss(embeddings.float())
             loss = ce_loss + sctr_weight * sctr_loss + ORTHO_WEIGHT * ortho_loss
 
         if use_amp:
@@ -686,6 +788,7 @@ def train_epoch(model, loader, criterion, optimizer, epoch=0, sctr_weight=SCTR_W
         total_loss += loss.item()
         total_ce += ce_loss.item()
         total_sctr += sctr_loss.item()
+        total_ortho += ortho_loss.item()
         _, predicted = logits.max(1)
         all_preds.extend(predicted.cpu().numpy())
         all_targets.extend(targets.cpu().numpy())
@@ -697,7 +800,6 @@ def train_epoch(model, loader, criterion, optimizer, epoch=0, sctr_weight=SCTR_W
 
 
 def evaluate(model, loader, criterion, desc="Evaluating"):
-    """Evaluate model on a data loader."""
     model.eval()
     total_loss, all_preds, all_targets = 0.0, [], []
     use_amp = DEVICE.type == 'cuda'
@@ -717,19 +819,18 @@ def evaluate(model, loader, criterion, desc="Evaluating"):
 
 
 def plot_curves(history: dict, out_dir: str = "."):
-    """Plot training/validation/test curves."""
     for metric in ['loss', 'acc']:
         plt.figure(figsize=(10, 6))
         plt.plot(history[f'train_{metric}'], label=f'Train {metric.capitalize()}')
         plt.plot(history[f'val_{metric}'],   label=f'Validation {metric.capitalize()}')
         plt.plot(history[f'test_{metric}'],  label=f'Test {metric.capitalize()}', linestyle='--')
-        plt.title(f'WaveCoAtNet {metric.capitalize()} Over Epochs')
+        plt.title(f'WaveCoAtNet v3 {metric.capitalize()} Over Epochs')
         plt.xlabel('Epoch')
         plt.ylabel(metric.capitalize())
         plt.legend()
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
-        plt.savefig(os.path.join(out_dir, f'wavecoatnet_{metric}_curves.png'), dpi=300)
+        plt.savefig(os.path.join(out_dir, f'wavecoatnet_v3_{metric}_curves.png'), dpi=300)
         plt.close()
 
 
@@ -791,20 +892,15 @@ def main():
     ).to(DEVICE)
     print("Class weights:", class_weights.cpu().numpy().round(4))
 
-    model     = WaveCoAtNet(num_classes=num_classes, dropout=DROPOUT, vit_blocks=4).to(DEVICE)
+    model     = WaveCoAtNet(num_classes=num_classes, dropout=DROPOUT, vit_blocks=8).to(DEVICE)
     criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
 
-    # Layer-wise LR: pretrained backbone gets lower LR, novel modules get higher LR
-    # This matches the training protocol used by all pretrained baselines.
-    backbone_params = []
-    novel_params = []
+    backbone_params, novel_params = [], []
     for name, p in model.named_parameters():
         if not p.requires_grad:
             continue
-        if any(s in name for s in ['cnn_stem', 'cnn_stage1', 'cnn_stage2', 'cnn_stage3', 'cnn_stage4']):
-            backbone_params.append(p)
-        else:
-            novel_params.append(p)
+        is_bb = any(s in name for s in ['cnn_stem', 'cnn_stage1', 'cnn_stage2', 'cnn_stage3', 'cnn_stage4'])
+        (backbone_params if is_bb else novel_params).append(p)
     print(f"Param groups: backbone={sum(p.numel() for p in backbone_params):,}, "
           f"novel={sum(p.numel() for p in novel_params):,}")
 
@@ -812,7 +908,7 @@ def main():
         {'params': backbone_params, 'lr': LR_BACKBONE},
         {'params': novel_params,    'lr': LR_HEAD},
     ], weight_decay=WEIGHT_DECAY)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=MAX_EPOCHS)
 
     try:
         print("\n--- Model Summary ---")
@@ -826,11 +922,12 @@ def main():
     epoch_times = []
     best_val_acc = 0.0
 
-    for epoch in range(EPOCHS):
-        print(f"\n--- Epoch {epoch + 1}/{EPOCHS} ---")
+    for epoch in range(MAX_EPOCHS):
+        print(f"\n--- Epoch {epoch + 1}/{MAX_EPOCHS} ---")
         t0 = time.time()
 
-        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, epoch=epoch, scaler=scaler)
+        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer,
+                                             epoch=epoch, scaler=scaler, class_weights=class_weights)
         val_loss,  val_acc,  _, _ = evaluate(model, validation_loader, criterion, "Validating")
         test_loss, test_acc, _, _ = evaluate(model, test_loader,       criterion, "Testing")
         scheduler.step()
@@ -848,20 +945,20 @@ def main():
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            torch.save(model.state_dict(), 'best_wavecoatnet.pth')
+            torch.save(model.state_dict(), 'best_wavecoatnet_v3.pth')
             print(f"  New best model saved (Val Acc = {best_val_acc:.4f})")
 
     avg_epoch_time = np.mean(epoch_times)
     print(f"\nAverage epoch time: {avg_epoch_time:.1f}s")
 
     print("\n--- Final Evaluation (Best Checkpoint) ---")
-    model.load_state_dict(torch.load('best_wavecoatnet.pth', weights_only=True))
+    model.load_state_dict(torch.load('best_wavecoatnet_v3.pth', weights_only=True))
     _, final_test_acc, y_true, y_pred = evaluate(model, test_loader, criterion, "Final Test")
     print(f"Final Test Accuracy: {final_test_acc * 100:.2f}%")
 
-    np.save('wavecoatnet_y_true.npy', np.array(y_true))
-    np.save('wavecoatnet_y_pred.npy', np.array(y_pred))
-    print("Predictions saved to wavecoatnet_y_true.npy and wavecoatnet_y_pred.npy")
+    np.save('wavecoatnet_v3_y_true.npy', np.array(y_true))
+    np.save('wavecoatnet_v3_y_pred.npy', np.array(y_pred))
+    print("Predictions saved to wavecoatnet_v3_y_true.npy and wavecoatnet_v3_y_pred.npy")
 
     print("\nClassification Report:")
     print(classification_report(y_true, y_pred, target_names=class_names, digits=4))
@@ -875,22 +972,22 @@ def main():
     )
     plt.xlabel('Predicted Label', fontsize=13)
     plt.ylabel('True Label', fontsize=13)
-    plt.title('Confusion Matrix -- WaveCoAtNet', fontsize=14, fontweight='bold')
+    plt.title('Confusion Matrix -- WaveCoAtNet v3', fontsize=14, fontweight='bold')
     plt.tight_layout()
-    plt.savefig('confusion_matrix_wavecoatnet.png', dpi=300)
+    plt.savefig('confusion_matrix_wavecoatnet_v3.png', dpi=300)
     plt.close()
 
     plot_curves(history)
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("\n--- Hyperparameter Summary ---")
-    print(f"  Architecture     : WaveCoAtNet (ConvNeXt-Tiny + WG-FDCA + {model.num_vit_blocks} ViT + CBAM + PA-DTS + PGAP + DPA + SCTR)")
+    print(f"  Architecture     : WaveCoAtNet v3 (ConvNeXt-Tiny + H-WG-FDCA + {model.num_vit_blocks} ViT + CrossModal + CBAMx3 + PA-DTS + PGAP + DPA + SCTR)")
     print(f"  Backbone         : convnext_tiny (pretrained=True, ImageNet-1k)")
     print(f"  Input resolution : {TARGET_SIZE[0]}x{TARGET_SIZE[1]}")
     print(f"  Batch size       : {BATCH_SIZE}")
-    print(f"  Epochs           : {EPOCHS}")
+    print(f"  Max epochs       : {MAX_EPOCHS} (patience={PATIENCE})")
     print(f"  Optimiser        : AdamW (backbone_lr={LR_BACKBONE}, head_lr={LR_HEAD}, weight_decay={WEIGHT_DECAY})")
-    print(f"  LR schedule      : CosineAnnealingLR (T_max={EPOCHS})")
+    print(f"  LR schedule      : CosineAnnealingLR (T_max={MAX_EPOCHS})")
     print(f"  Proto warmup     : {PROTO_WARMUP_EPOCHS} epochs at momentum=0.9, then {PROTO_MOMENTUM}")
     print(f"  Loss             : CE(label_smoothing=0.1, class_weights) + {SCTR_WEIGHT}*SupCon(T=0.07)")
     print(f"  Dropout          : {DROPOUT}")
