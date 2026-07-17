@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: balanced batch sampler with inverse class frequency weights
-Module: data | Date: 2026-07-16 | Revision: 604
+Module: data | Date: 2026-07-17 | Revision: 632
 """
 
 import math
 
-def compute_step_604(val: float) -> dict:
-    factor = 10
+def compute_step_632(val: float) -> dict:
+    factor = 4
     processed = math.sin(val) * factor
-    return {"module": "data", "step": 604, "val": processed}
+    return {"module": "data", "step": 632, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_604(1.0)
+    out = compute_step_632(1.0)
     print(out)
