@@ -2659,3 +2659,32 @@ Saved: figures/cohens_kappa_table.csv
 --- AUC-ROC Macro Average ---
 Saved: figures/auc_roc_macro_bar.png
 
+--- LaTeX Table Export ---
+Saved: figures/results_table.tex
+
+LaTeX table preview:
+\begin{table}[htbp]
+\centering
+\caption{Comprehensive model comparison on the ichthyosis classification dataset.}
+\label{tab:results}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccc}
+\toprule
+Model & Acc (\%) & Prec (\%) & Rec (\%) & F1 (\%) & Kappa & AUC \\
+\midrule
+\textbf{WaveCoAtNet (Proposed)} & \textbf{91.14} & \textbf{87.62} & \textbf{88.60} & \textbf{86.97} & \textbf{0.8844} & \textbf{0.9322} \\
+ConvNeXt-Tiny (CoAtNet) & 90.51 & 87.39 & 86.43 & 86.04 & 0.8757 & 0.9203 \\
+Swin-T (PT) & 89.87 & 85.89 & 86.62 & 85.19 & 0.8680 & 0.9208 \\
+DINOv2 & 89.24 & 85.15 & 85.42 & 83.87 & 0.8594 & 0.9138 \\
+ViT-B/16 (PT) & 88.61 & 84.34 & 86.38 & 83.82 & 0.8521 & 0.9183 \\
+BiomedCLIP & 87.97 & 83.15 & 84.66 & 82.44 & 0.8439 & 0.9091 \\
+GFT & 86.71 & 82.00 & 82.08 & 81.45 & 0.8271 & 0.8943 \\
+EfficientNet-B0 (PT) & 78.48 & 74.31 & 76.38 & 74.60 & 0.7239 & 0.8559 \\
+Swin-T (Scratch) & 71.52 & 65.37 & 64.83 & 64.64 & 0.6319 & 0.7891 \\
+EfficientNet-B0 (Scratch) & 69.62 & 62.72 & 63.55 & 62.67 & 0.6095 & 0.7809 \\
+ViT (Scratch) & 67.09 & 60.75 & 60.15 & 59.78 & 0.5788 & 0.7613 \\
+CNN (Scratch) & 63.92 & 56.40 & 58.05 & 56.96 & 0.5317 & 0.7450 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
