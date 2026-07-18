@@ -2646,3 +2646,6 @@ Loaded 12/12 models
 ============================================================
 Saved: figures/radar_chart_comparison.png
 
+--- Per-Class Precision-Recall Table ---
+Saved: figures/per_class_precision_recall_table.png
+
