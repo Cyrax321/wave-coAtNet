@@ -2688,3 +2688,18 @@ CNN (Scratch) & 63.92 & 56.40 & 58.05 & 56.96 & 0.5317 & 0.7450 \\
 \end{tabular}}
 \end{table}
 
+--- radar_chart_comparison.png ---
+
+
+--- per_class_precision_recall_table.png ---
+
+
+--- cohens_kappa_comparison.png ---
+
+
+--- auc_roc_macro_bar.png ---
+
+
+============================================================
+  ALL A* PAPER OUTPUTS GENERATED
+============================================================
