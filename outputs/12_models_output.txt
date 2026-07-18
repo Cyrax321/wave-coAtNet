@@ -386,7 +386,7 @@ Ichthyosis vulgaris      0.9184    0.9783    0.9474        46
   OK wavecoatnet_y_pred.npy
   OK wavecoatnet_y_true.npy
 
-/content/drive/MyDrive/WaveCoAtNet_experiments/wave-coAtNet/Wave-CoAtNet-Ichthyosis/wave-CoAtNet
+  /content/drive/MyDrive/WaveCoAtNet_experiments/wave-coAtNet/Wave-CoAtNet-Ichthyosis/wave-CoAtNet
 
 ============================================================
   Training: EfficientNet-B0 (Pretrained)
@@ -1356,6 +1356,7 @@ Prediction files: 8/8
   swin_pretrained_y_pred.npy
   vit_pretrained_y_pred.npy
   wavecoatnet_y_pred.npy
+
 
 /content/drive/MyDrive/WaveCoAtNet_experiments/wave-coAtNet/Wave-CoAtNet-Ichthyosis/wave-CoAtNet
 
@@ -2570,7 +2571,7 @@ Total prediction files: 12/12
   [OK] vit_scratch_y_pred.npy
   [OK] wavecoatnet_y_pred.npy
 
-/content/drive/MyDrive/WaveCoAtNet_experiments/wave-coAtNet/Wave-CoAtNet-Ichthyosis/wave-CoAtNet
+  /content/drive/MyDrive/WaveCoAtNet_experiments/wave-coAtNet/Wave-CoAtNet-Ichthyosis/wave-CoAtNet
 Loading prediction files...
 Found predictions for 12 models:
   WaveCoAtNet (Proposed): 91.14% (158 samples)
@@ -2637,4 +2638,4 @@ Figures generated: 15
   figures/statistical_significance.png
   figures/tsne_embeddings.png
 
-  
+
