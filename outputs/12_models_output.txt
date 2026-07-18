@@ -2656,3 +2656,6 @@ Saved: figures/training_convergence_overlay.png
 Saved: figures/cohens_kappa_comparison.png
 Saved: figures/cohens_kappa_table.csv
 
+--- AUC-ROC Macro Average ---
+Saved: figures/auc_roc_macro_bar.png
+
