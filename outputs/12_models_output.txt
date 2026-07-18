@@ -2639,3 +2639,10 @@ Figures generated: 15
   figures/tsne_embeddings.png
 
 
+Loaded 12/12 models
+
+============================================================
+  RADAR CHART: Proposed vs Top-3 Baselines
+============================================================
+Saved: figures/radar_chart_comparison.png
+
