@@ -398,7 +398,8 @@ Results appended to ablation_results.csv
   ALL 10 ABLATION CONDITIONS COMPLETE
 ============================================================
 
-Loaded: full
+
+  Loaded: full
   Loaded: no_dpa
   Loaded: no_pgap
   Loaded: no_wgfdca
@@ -430,15 +431,3 @@ ConvNeXt-Tiny Baseline     91.77   +0.63  87.90   +0.44 0.8928
 Saved: figures/ablation_bar_detailed.png
 Saved: figures/ablation_f1_heatmap.png
 
-================================================================================
-  McNEMAR: Full vs Each Ablation
-================================================================================
-  w/o DPA                   chi2=0.125  p=0.7237  ns
-  w/o PGAP+DPA              chi2=0.100  p=0.7518  ns
-  w/o WG-FDCA               chi2=1.125  p=0.2888  ns
-  w/o Transformer           chi2=0.250  p=0.6171  ns
-  w/o PA-DTS (GAP)          chi2=0.000  p=1.0000  ns
-  w/o SCTR                  chi2=0.250  p=0.6171  ns
-  w/ Fixed Pruning          chi2=0.167  p=0.6831  ns
-  w/o Prototypes            chi2=0.000  p=1.0000  ns|
-  ConvNeXt-Tiny Baseline    chi2=0.000  p=1.0000  ns
