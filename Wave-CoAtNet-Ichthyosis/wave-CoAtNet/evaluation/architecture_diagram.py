@@ -218,3 +218,65 @@ def create_architecture_diagram():
     
     # Dashed arrow from PA-DTS prototypes to SCTR
     ax.annotate('', xy=(0.14, y_loss+0.06), xytext=(0.14, y_down),
+                arrowprops=dict(arrowstyle='->', color=COLORS['loss'], lw=1.2, linestyle='dashed'))
+    
+    # ==================== LEGEND ====================
+    legend_x = 0.70
+    legend_y = 0.28
+    
+    ax.text(legend_x, legend_y, 'Legend', fontsize=10, fontweight='bold', color=COLORS['text_dark'])
+    
+    legend_items = [
+        ('CNN Backbone', COLORS['cnn']),
+        ('CBAM Attention', COLORS['cbam']),
+        ('WG-FDCA (Novel)', COLORS['wavelet']),
+        ('ViT Path', COLORS['vit']),
+        ('Fusion', COLORS['fusion']),
+        ('Novel Modules', COLORS['prototype']),
+        ('Auxiliary Loss', COLORS['loss']),
+    ]
+    
+    for i, (label, color) in enumerate(legend_items):
+        y_pos = legend_y - 0.03 - i * 0.025
+        box = FancyBboxPatch((legend_x, y_pos - 0.008), 0.018, 0.016,
+                             boxstyle="round,pad=0.002",
+                             facecolor=color, edgecolor='#333333', linewidth=0.8)
+        ax.add_patch(box)
+        ax.text(legend_x + 0.022, y_pos, label, fontsize=8, color=COLORS['text_dark'], va='center')
+    
+    # ==================== NOVEL CONTRIBUTIONS ====================
+    contrib_x = 0.70
+    contrib_y = 0.06
+    
+    ax.text(contrib_x, contrib_y, 'Novel Contributions:', fontsize=9, fontweight='bold', color=COLORS['text_dark'])
+    
+    contributions = [
+        '1. WG-FDCA: Wavelet-guided frequency',
+        '   decomposed cross-attention',
+        '2. PA-DTS: Prototype-anchored dynamic',
+        '   token selection',
+        '3. PGAP: Prototype-guided attention pooling',
+        '4. DPA: Dual-path aggregation',
+        '5. SCTR: Supervised contrastive',
+        '   token regularization',
+        '6. CBAM: Channel & spatial attention',
+    ]
+    
+    for i, text in enumerate(contributions):
+        ax.text(contrib_x, contrib_y - 0.02 - i*0.018, text, fontsize=7.5, color='#424242')
+    
+    plt.tight_layout()
+    
+    # Save
+    output_dir = '/Users/cyrax8590gmail.com/Desktop/coatnet/Wave-CoAtNet-Ichthyosis/wave-CoAtNet/evaluation'
+    plt.savefig(f'{output_dir}/wavecoatnet_architecture.png', dpi=300, bbox_inches='tight', 
+                facecolor='white', edgecolor='none')
+    plt.savefig(f'{output_dir}/wavecoatnet_architecture.pdf', bbox_inches='tight',
+                facecolor='white', edgecolor='none')
+    
+    print("Publication-quality architecture diagram saved:")
+    print(f"  - {output_dir}/wavecoatnet_architecture.png (300 DPI)")
+    print(f"  - {output_dir}/wavecoatnet_architecture.pdf (vector)")
+
+if __name__ == '__main__':
+    create_architecture_diagram()
