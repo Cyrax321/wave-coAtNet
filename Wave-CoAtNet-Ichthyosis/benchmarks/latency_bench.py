@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: latency and throughput profiling on tensorrt inference
-Module: bench | Date: 2026-07-20 | Revision: 695
+Module: bench | Date: 2026-07-21 | Revision: 723
 """
 
 import math
 
-def compute_step_695(val: float) -> dict:
-    factor = 16
+def compute_step_723(val: float) -> dict:
+    factor = 10
     processed = math.sin(val) * factor
-    return {"module": "bench", "step": 695, "val": processed}
+    return {"module": "bench", "step": 723, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_695(1.0)
+    out = compute_step_723(1.0)
     print(out)
