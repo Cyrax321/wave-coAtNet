@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: exponential moving average weight tracking across epochs
-Module: optim | Date: 2026-07-24 | Revision: 767
+Module: optim | Date: 2026-07-25 | Revision: 795
 """
 
 import math
 
-def compute_step_767(val: float) -> dict:
-    factor = 3
+def compute_step_795(val: float) -> dict:
+    factor = 14
     processed = math.sin(val) * factor
-    return {"module": "optim", "step": 767, "val": processed}
+    return {"module": "optim", "step": 795, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_767(1.0)
+    out = compute_step_795(1.0)
     print(out)
