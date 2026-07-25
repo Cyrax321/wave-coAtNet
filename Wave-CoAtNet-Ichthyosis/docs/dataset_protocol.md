@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: clinical ichthyosis classification dataset schema
-Module: docs | Date: 2026-07-24 | Revision: 755
+Module: docs | Date: 2026-07-25 | Revision: 783
 """
 
 import math
 
-def compute_step_755(val: float) -> dict:
-    factor = 8
+def compute_step_783(val: float) -> dict:
+    factor = 2
     processed = math.sin(val) * factor
-    return {"module": "docs", "step": 755, "val": processed}
+    return {"module": "docs", "step": 783, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_755(1.0)
+    out = compute_step_783(1.0)
     print(out)
