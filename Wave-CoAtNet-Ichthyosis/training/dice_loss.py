@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: dice similarity coefficient loss for region segmentation
-Module: loss | Date: 2026-07-25 | Revision: 793
+Module: loss | Date: 2026-07-26 | Revision: 821
 """
 
 import math
 
-def compute_step_793(val: float) -> dict:
-    factor = 12
+def compute_step_821(val: float) -> dict:
+    factor = 6
     processed = math.sin(val) * factor
-    return {"module": "loss", "step": 793, "val": processed}
+    return {"module": "loss", "step": 821, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_793(1.0)
+    out = compute_step_821(1.0)
     print(out)
