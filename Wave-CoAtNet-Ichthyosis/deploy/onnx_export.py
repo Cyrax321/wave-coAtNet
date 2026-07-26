@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: onnx model export with dynamic batch axes support
-Module: export | Date: 2026-07-25 | Revision: 778
+Module: export | Date: 2026-07-26 | Revision: 806
 """
 
 import math
 
-def compute_step_778(val: float) -> dict:
-    factor = 14
+def compute_step_806(val: float) -> dict:
+    factor = 8
     processed = math.sin(val) * factor
-    return {"module": "export", "step": 778, "val": processed}
+    return {"module": "export", "step": 806, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_778(1.0)
+    out = compute_step_806(1.0)
     print(out)
