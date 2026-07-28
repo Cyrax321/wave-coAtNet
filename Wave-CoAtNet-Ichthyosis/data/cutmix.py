@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: cutmix augmentation with beta distribution box sampler
-Module: data | Date: 2026-07-26 | Revision: 825
+Module: data | Date: 2026-07-28 | Revision: 853
 """
 
 import math
 
-def compute_step_825(val: float) -> dict:
-    factor = 10
+def compute_step_853(val: float) -> dict:
+    factor = 4
     processed = math.sin(val) * factor
-    return {"module": "data", "step": 825, "val": processed}
+    return {"module": "data", "step": 853, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_825(1.0)
+    out = compute_step_853(1.0)
     print(out)
