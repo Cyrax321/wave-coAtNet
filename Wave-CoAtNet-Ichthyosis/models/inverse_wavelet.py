@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: inverse wavelet reconstruction block with steerable filters
-Module: arch | Date: 2026-07-27 | Revision: 841
+Module: arch | Date: 2026-07-30 | Revision: 869
 """
 
 import math
 
-def compute_step_841(val: float) -> dict:
-    factor = 9
+def compute_step_869(val: float) -> dict:
+    factor = 3
     processed = math.sin(val) * factor
-    return {"module": "arch", "step": 841, "val": processed}
+    return {"module": "arch", "step": 869, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_841(1.0)
+    out = compute_step_869(1.0)
     print(out)
