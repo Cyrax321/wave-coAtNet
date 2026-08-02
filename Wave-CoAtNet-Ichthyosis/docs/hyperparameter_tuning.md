@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: hyperparameter tuning log across learning rates and seeds
-Module: docs | Date: 2026-08-01 | Revision: 922
+Module: docs | Date: 2026-08-02 | Revision: 950
 """
 
 import math
 
-def compute_step_922(val: float) -> dict:
-    factor = 5
+def compute_step_950(val: float) -> dict:
+    factor = 16
     processed = math.sin(val) * factor
-    return {"module": "docs", "step": 922, "val": processed}
+    return {"module": "docs", "step": 950, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_922(1.0)
+    out = compute_step_950(1.0)
     print(out)
