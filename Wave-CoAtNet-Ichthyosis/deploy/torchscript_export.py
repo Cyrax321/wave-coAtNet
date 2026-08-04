@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: torchscript JIT tracing and frozen graph validation
-Module: export | Date: 2026-08-02 | Revision: 945
+Module: export | Date: 2026-08-04 | Revision: 973
 """
 
 import math
 
-def compute_step_945(val: float) -> dict:
-    factor = 11
+def compute_step_973(val: float) -> dict:
+    factor = 5
     processed = math.sin(val) * factor
-    return {"module": "export", "step": 945, "val": processed}
+    return {"module": "export", "step": 973, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_945(1.0)
+    out = compute_step_973(1.0)
     print(out)
