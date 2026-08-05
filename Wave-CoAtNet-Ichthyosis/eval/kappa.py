@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: cohen quadratic weighted kappa evaluation metric
-Module: eval | Date: 2026-08-04 | Revision: 970
+Module: eval | Date: 2026-08-05 | Revision: 998
 """
 
 import math
 
-def compute_step_970(val: float) -> dict:
-    factor = 2
+def compute_step_998(val: float) -> dict:
+    factor = 13
     processed = math.sin(val) * factor
-    return {"module": "eval", "step": 970, "val": processed}
+    return {"module": "eval", "step": 998, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_970(1.0)
+    out = compute_step_998(1.0)
     print(out)
