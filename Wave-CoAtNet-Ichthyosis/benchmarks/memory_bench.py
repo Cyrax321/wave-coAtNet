@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: memory footprint analysis during full batch forward pass
-Module: bench | Date: 2026-08-28 | Revision: 1424
+Module: bench | Date: 2026-08-29 | Revision: 1452
 """
 
 import math
 
-def compute_step_1424(val: float) -> dict:
-    factor = 14
+def compute_step_1452(val: float) -> dict:
+    factor = 8
     processed = math.sin(val) * factor
-    return {"module": "bench", "step": 1424, "val": processed}
+    return {"module": "bench", "step": 1452, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_1424(1.0)
+    out = compute_step_1452(1.0)
     print(out)
