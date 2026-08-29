@@ -1,14 +1,14 @@
 """Wave-CoAtNet Component: class balanced loss weighting based on effective sample size
-Module: loss | Date: 2026-08-28 | Revision: 1435
+Module: loss | Date: 2026-08-29 | Revision: 1463
 """
 
 import math
 
-def compute_step_1435(val: float) -> dict:
-    factor = 8
+def compute_step_1463(val: float) -> dict:
+    factor = 2
     processed = math.sin(val) * factor
-    return {"module": "loss", "step": 1435, "val": processed}
+    return {"module": "loss", "step": 1463, "val": processed}
 
 if __name__ == '__main__':
-    out = compute_step_1435(1.0)
+    out = compute_step_1463(1.0)
     print(out)
